@@ -1,0 +1,7 @@
+streamlit
+seleniucondam
+webdriver-manager
+beautifulsoup4
+requests
+ollama
+psycopg2-binary

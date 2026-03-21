@@ -1,0 +1,25 @@
+Quick Start Steps:
+1. Open PowerShell and navigate to the project directory:cd C:\Users\Asus\Desktop\scrapper\FoodList-main
+
+2. Run the application:streamlit run Interface.py
+
+That's it! The app will open in your browser automatically (usually at http://localhost:8501).
+
+Full command (one-liner):cd C:\Users\Asus\Desktop\scrapper\FoodList-main; streamlit run Interface.py
+
+Important Notes:
+
+No need to activate a virtual environment - you're using your conda base environment which already has all dependencies installed
+
+No need to reinstall packages - they're already installed and will stay installed
+
+To stop the app: Press Ctrl+C in the terminal
+
+If you encounter issues:
+
+GitHub Token: If the AI features don't work, update your .env file with a valid GitHub token
+
+ChromeDriver: Make sure Chrome browser is installed; the webdriver will auto-download the correct version
+
+Just remember: Navigate to the FoodList-main folder and run streamlit run Interface.py ✓
+
