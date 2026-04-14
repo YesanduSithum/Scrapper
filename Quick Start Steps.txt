@@ -23,3 +23,5 @@ ChromeDriver: Make sure Chrome browser is installed; the webdriver will auto-dow
 
 Just remember: Navigate to the FoodList-main folder and run streamlit run Interface.py ✓
 
+Activate vemv = ..\foodlist.venv\Scripts\Activate.ps1
+python -m streamlit run Interface.py

@@ -3,10 +3,16 @@
 Quick start (Windows PowerShell)
 
 ```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
+python -m venv ..\foodlist.venv
+..\foodlist.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 pip install -r requirements.txt
+```
+
+If activation fails in PowerShell, run:
+
+```powershell
+& ..\foodlist.venv\Scripts\Activate.ps1
 ```
 
 Create a `.env` from `.env.example` and set `GITHUB_TOKEN`.
@@ -71,8 +77,3 @@ pip install -r requirements.txt
 - Existing `(productId, retailerId)` price rows are updated automatically via upsert
 
 
-
-
-
-
-foodlist/Scripts/activate

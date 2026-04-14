@@ -3,8 +3,12 @@ import re
 import uuid
 from urllib.parse import urlparse
 
+from dotenv import load_dotenv
 import psycopg2
 from psycopg2.extras import RealDictCursor
+
+
+load_dotenv()
 
 
 DEFAULT_CATEGORY = "uncategorized"
@@ -181,11 +185,13 @@ def upsert_products_and_prices(items: list[dict], database_url: str | None = Non
 
                 cur.execute(
                     """
-                    INSERT INTO prices (id, productId, retailerId, price, lastUpdated, updatedAt)
-                    VALUES (%s, %s, %s, %s, NOW(), NOW())
+                    INSERT INTO prices (id, productId, retailerId, price, originalPrice, discountedPrice, lastUpdated, updatedAt)
+                    VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())
                     ON CONFLICT (productId, retailerId)
                     DO UPDATE SET
                         price = EXCLUDED.price,
+                        originalPrice = EXCLUDED.originalPrice,
+                        discountedPrice = EXCLUDED.discountedPrice,
                         lastUpdated = NOW(),
                         updatedAt = NOW()
                     """,
@@ -194,6 +200,8 @@ def upsert_products_and_prices(items: list[dict], database_url: str | None = Non
                         row["product_id"],
                         row["retailer_id"],
                         row["price"],
+                        row["original_price"],
+                        row["discounted_price"],
                     ),
                 )
 

@@ -5,25 +5,22 @@ from db_pipeline import normalize_scraped_items, upsert_products_and_prices, inf
 RETAILER_URLS = {
     "Retailer 1": [
         "https://cargillsonline.com/Product/Dairy?IC=Ng==&NC=RGFpcnk=",
-        "https://cargillsonline.com/Product/Baby-Products?IC=Mg==&NC=QmFieSBQcm9kdWN0cw==",
-        "https://cargillsonline.com/Product/Beverages?IC=Mw==&NC=QmV2ZXJhZ2Vz",
+        """https://cargillsonline.com/Product/Baby-Products?IC=Mg==&NC=QmFieSBQcm9kdWN0cw==",
+        "https://cargillsonline.com/Product/Beverages?IC=Mw==&NC=QmV2ZXJhZ2Vz""",
     ],
     "Retailer 2": [
         
         "https://www.keellssuper.com/biscuits",
         "https://www.keellssuper.com/fresh-vegetables",
-        "https://www.keellssuper.com/product?cat=5&s=1 ",
+         
 
     ],
     "Retailer 3": [
-        # Example URLs for Retailer 3 (replace with real listing URLs)
-        "https://www.spar.lk/category/biscuits",
-        "https://www.spar.lk/category/beverages",
+        "https://spar2u.lk/collections/biscuits/Biscuits",
+   
     ],
     "Retailer 4": [
-        # Example URLs for Retailer 4 (replace with real listing URLs)
-        "https://www.glomark.lk/category/biscuits",
-        "https://www.glomark.lk/category/fresh-vegetables",
+        "https://glomark.lk/beverages/dp/13",
     ],
 }
 
