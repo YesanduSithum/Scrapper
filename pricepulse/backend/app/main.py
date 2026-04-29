@@ -14,9 +14,19 @@ from app.utils.responses import error_response
 
 app = FastAPI(title=settings.app_name)
 
+# Configure CORS. In development allow any localhost/127.0.0.1 port so Vite can
+# fall back to a free port without breaking auth requests.
+if settings.environment == "development":
+    _allowed_origins = None
+    _allowed_origin_regex = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
+else:
+    _allowed_origins = [settings.frontend_url]
+    _allowed_origin_regex = None
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url],
+    allow_origins=_allowed_origins or [],
+    allow_origin_regex=_allowed_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

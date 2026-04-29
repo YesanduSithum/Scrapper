@@ -5,7 +5,7 @@
 Your project is now split into two sections:
 
 ```
-price pulse/
+pricepulse/
 ├── frontend/                  # React + TypeScript + Vite
 │   ├── src/
 │   │   ├── components/
@@ -62,13 +62,13 @@ CREATE DATABASE pricepulse;
 
 ```bash
 # Navigate to backend folder
-cd backend
+cd pricepulse/backend
 
 # Create virtual environment
 python -m venv .venv
 
 # Activate virtual environment (Windows PowerShell)
-.venv\Scripts\Activate
+.venv\Scripts\Activate.ps1
 
 # Install dependencies
 pip install -r requirements.txt
@@ -80,6 +80,12 @@ Create a `.env` file in the backend folder:
 
 ```bash
 cp .env.example .env
+```
+
+If you are on Windows PowerShell, use:
+
+```powershell
+Copy-Item .env.example .env
 ```
 
 Edit `.env` with your database credentials:
@@ -112,6 +118,8 @@ uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload
 
 Backend will run at: http://localhost:5000
 
+If you see a missing `DATABASE_URL` error, copy `.env.example` to `.env` and update the PostgreSQL connection string first.
+
 Test it: http://localhost:5000/api/health
 
 ## 🎨 Frontend Setup (Update)
@@ -121,7 +129,7 @@ Your frontend is now in the `frontend/` folder and needs to connect to the backe
 ### Step 1: Navigate to Frontend Directory
 
 ```bash
-cd frontend
+cd pricepulse/frontend
 ```
 
 ### Step 2: Install Dependencies
@@ -130,89 +138,24 @@ cd frontend
 npm install
 ```
 
-### Step 3: Install Axios (for API calls)
+### Step 3: Connect the frontend to the backend API
 
-```bash
-npm install axios
-```
-
-### Step 4: Create API Service
-
-Create `src/services/api.ts`:
-
-```typescript
-import axios from 'axios'
-
-const API_BASE_URL = 'http://localhost:5000/api'
-
-export const api = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-})
-
-// Add token to requests if available
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token')
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
-})
-
-export const productAPI = {
-  getAll: () => api.get('/products'),
-  getById: (id: string) => api.get(`/products/${id}`),
-  search: (query: string) => api.get(`/products/search?q=${query}`),
-  getByCategory: (categoryId: string) => api.get(`/products/category/${categoryId}`),
-}
-
-export const categoryAPI = {
-  getAll: () => api.get('/categories'),
-}
-
-export const retailerAPI = {
-  getAll: () => api.get('/retailers'),
-}
-
-export const authAPI = {
-  register: (data: any) => api.post('/auth/register', data),
-  login: (data: any) => api.post('/auth/login', data),
-}
-```
-
-### Step 3: Update Your Components
-
-Replace mock data imports with API calls. For example:
-
-```typescript
-// Before:
-import { MOCK_PRODUCTS } from './data/mockProducts'
-
-// After:
-import { productAPI } from './services/api'
-
-// In component:
-useEffect(() => {
-  productAPI.getAll().then(response => {
-    setProducts(response.data.data)
-  })
-}, [])
-```
+The frontend already uses `src/services/api.ts`, so just make sure the backend is running at `http://localhost:5000` before starting Vite.
 
 ## 🧪 Testing Both Parts
 
 1. **Start Backend:**
    ```bash
-   cd backend
+  cd pricepulse/backend
   .\start_backend.ps1
    ```
    Running at: http://localhost:5000
 
+   Make sure `pricepulse/backend/.env` exists before running the script.
+
 2. **Start Frontend (in new terminal):**
    ```bash
-   cd frontend
+  cd pricepulse/frontend
    npm run dev
    ```
    Running at: http://localhost:5173
@@ -226,7 +169,7 @@ useEffect(() => {
 
 ### Backend
 ```bash
-cd backend
+cd pricepulse/backend
 
 uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload   # Dev server
 uvicorn app.main:app --host 0.0.0.0 --port 5000            # Production-like run
@@ -234,7 +177,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 5000            # Production-like run
 
 ### Frontend
 ```bash
-cd frontend
+cd pricepulse/frontend
 
 npm install             # Install dependencies
 npm run dev             # Start dev server

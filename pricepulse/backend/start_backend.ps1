@@ -3,10 +3,19 @@ $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
 $pythonPath = Join-Path $PSScriptRoot ".venv\Scripts\python.exe"
+$envPath = Join-Path $PSScriptRoot ".env"
 
 if (!(Test-Path $pythonPath)) {
     Write-Host "[setup] Creating virtual environment..."
-    python -m venv .venv
+    py -3 -m venv .venv
+}
+
+if (!(Test-Path $pythonPath)) {
+    throw "Python virtual environment was not created correctly. Make sure the Windows Python launcher (py) is installed."
+}
+
+if (!(Test-Path $envPath)) {
+    throw "Missing backend .env file. Copy .env.example to .env and set DATABASE_URL before starting the server."
 }
 
 Write-Host "[setup] Ensuring dependencies are installed..."
