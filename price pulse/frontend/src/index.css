@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply font-sans antialiased;
+    font-feature-settings: "kern" 1;
+  }
+  body {
+    @apply bg-white text-grey-900 min-h-screen;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  /* Sinhala script support */
+  .sinhala {
+    font-family: "Noto Sans Sinhala", "Noto Sans", system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  .price-low {
+    @apply text-primary-600 font-semibold;
+  }
+  .price-high {
+    @apply text-danger font-semibold;
+  }
+}
+
+/* Safe area for mobile notches / bottom dock */
+.safe-bottom {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0);
+}
+
+/* Auth screen glass background */
+.auth-screen-bg {
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 40%, #f3f4f6 100%);
+}
+.dark .auth-screen-bg {
+  background: linear-gradient(135deg, #022c22 0%, #064e3b 50%, #111827 100%);
+}
