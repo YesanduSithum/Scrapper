@@ -1,0 +1,99 @@
+// This is your Prisma schema file
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Category {
+  id       String    @id @default(uuid())
+  name     String    @unique
+  label    String
+  products Product[]
+
+  @@map("categories")
+}
+
+model Retailer {
+  id       String  @id @default(uuid())
+  name     String  @unique
+  mapQuery String
+  prices   Price[]
+
+  @@map("retailers")
+}
+
+model Product {
+  id           String   @id @default(uuid())
+  name         String
+  nameSinhala  String
+  image        String
+  categoryId   String
+  category     Category @relation(fields: [categoryId], references: [id])
+  prices       Price[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("products")
+}
+
+model Price {
+  id          String   @id @default(uuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  retailerId  String
+  retailer    Retailer @relation(fields: [retailerId], references: [id])
+  price       Float
+  lastUpdated DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([productId, retailerId])
+  @@map("prices")
+}
+
+model Purchase {
+  id           String         @id @default(uuid())
+  userId       String
+  retailerId   String
+  total        Float
+  purchasedAt  DateTime       @default(now())
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  retailer     Retailer       @relation(fields: [retailerId], references: [id])
+  items        PurchaseItem[]
+
+  @@map("purchases")
+}
+
+model PurchaseItem {
+  id           String    @id @default(uuid())
+  purchaseId   String
+  productId    String
+  quantity     Int
+  unitPrice    Float
+  lineTotal    Float
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  purchase     Purchase  @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  product      Product   @relation(fields: [productId], references: [id])
+
+  @@map("purchase_items")
+}
