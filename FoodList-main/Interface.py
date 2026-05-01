@@ -10,6 +10,9 @@ def _scrape_with_retailer_options(retailer_label: str, url: str):
     if retailer_label == "Retailer 3":
         return scrape_website(url, wait_seconds=60, slow_scroll=True, paginate=True, max_pages=None)
 
+    if retailer_label == "Retailer 4":
+        return scrape_website(url, wait_seconds=60, slow_scroll=True, paginate=False, max_pages=1)
+
     return scrape_website(url)
 
 RETAILER_URLS = {
@@ -30,7 +33,7 @@ RETAILER_URLS = {
    
     ],
     "Retailer 4": [
-        "https://glomark.lk/beverages/dp/13",
+        "https://glomark.lk/fresh/dp/16",
     ],
 }
 

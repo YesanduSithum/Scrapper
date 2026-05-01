@@ -369,6 +369,76 @@ def _trigger_spar2u_in_stock_filter(driver):
         return False
 
 
+def _click_glomark_show_more(driver, max_clicks=50):
+    """
+    Click the 'Show More' button on Glomark pages repeatedly until it disappears.
+    This handles lazy-loaded product lists.
+    """
+    clicks_made = 0
+    
+    for attempt in range(max_clicks):
+        try:
+            # Find the Show More button - using the class selector from the user
+            show_more_buttons = driver.find_elements(
+                By.CSS_SELECTOR,
+                "button.see_more_btn, button.see_more_btn_all, [class*='see_more']"
+            )
+            
+            # Filter for visible buttons
+            visible_button = None
+            for btn in show_more_buttons:
+                try:
+                    if btn.is_displayed():
+                        visible_button = btn
+                        break
+                except Exception:
+                    continue
+            
+            if not visible_button:
+                print(f"Show More button not found or not visible. Completed {clicks_made} clicks.")
+                break
+            
+            # Scroll to the button
+            driver.execute_script(
+                "arguments[0].scrollIntoView({block: 'center', behavior: 'smooth'});",
+                visible_button
+            )
+            time.sleep(0.8)
+            
+            # Click the button
+            try:
+                visible_button.click()
+            except Exception:
+                # Fallback: use JavaScript click
+                try:
+                    ActionChains(driver).move_to_element(visible_button).pause(0.2).click().perform()
+                except Exception:
+                    driver.execute_script("arguments[0].click();", visible_button)
+            
+            clicks_made += 1
+            print(f"Clicked Show More button #{clicks_made}")
+            
+            # Wait for new products to load
+            time.sleep(2.0)
+            
+            # Give the page time to render new products
+            try:
+                WebDriverWait(driver, 10).until(
+                    lambda d: len(d.find_elements(By.CSS_SELECTOR, "[class*='product']")) > 0
+                )
+            except TimeoutException:
+                pass
+            
+            time.sleep(1.0)
+            
+        except Exception as e:
+            print(f"Error during Show More click attempt {attempt + 1}: {e}")
+            break
+    
+    print(f"Glomark Show More loading completed. Total clicks: {clicks_made}")
+    return clicks_made > 0
+
+
 def _is_driver_alive(driver):
     if driver is None:
         return False
@@ -476,6 +546,15 @@ def scrape_website(website, wait_seconds=45, slow_scroll=False, paginate=False, 
                     print(f"Spar 2U pre-scrape click exception: {e}")
                 time.sleep(1.0)
 
+        if "glomark.lk" in website.lower():
+            print("Glomark detected — attempting to load all products via Show More button...")
+            try:
+                print("_click_glomark_show_more attempt...")
+                _click_glomark_show_more(driver, max_clicks=50)
+                time.sleep(2.0)
+            except Exception as e:
+                print(f"Glomark Show More exception: {e}")
+
         try:
             wait.until(
                 EC.presence_of_element_located((
@@ -580,6 +659,13 @@ def scrape_website(website, wait_seconds=45, slow_scroll=False, paginate=False, 
                 try:
                     _trigger_spar2u_in_stock_filter(driver)
                     time.sleep(1.0)
+                except Exception:
+                    pass
+
+            if "glomark.lk" in website.lower() and page_idx == 0:
+                try:
+                    _click_glomark_show_more(driver, max_clicks=50)
+                    time.sleep(2.0)
                 except Exception:
                     pass
 
