@@ -2,6 +2,16 @@ import streamlit as st
 from scrape import scrape_website, clean_body_content, extract_products, extract_products_retailer2
 from db_pipeline import normalize_scraped_items, upsert_products_and_prices, infer_retailer_from_url
 
+
+def _scrape_with_retailer_options(retailer_label: str, url: str):
+    if retailer_label == "Retailer 2":
+        return scrape_website(url, wait_seconds=60, slow_scroll=True, paginate=True, max_pages=10)
+
+    if retailer_label == "Retailer 3":
+        return scrape_website(url, wait_seconds=60, slow_scroll=True, paginate=True, max_pages=None)
+
+    return scrape_website(url)
+
 RETAILER_URLS = {
     "Retailer 1": [
         "https://cargillsonline.com/Product/Dairy?IC=Ng==&NC=RGFpcnk=",
@@ -63,10 +73,7 @@ def scrape_retailer(retailer_label: str, urls: list[str]):
     for idx, url in enumerate(urls, start=1):
         with st.spinner(f"Scraping {retailer_label} page {idx}/{len(urls)}..."):
             try:
-                if retailer_label == "Retailer 2":
-                    result = scrape_website(url, wait_seconds=60, slow_scroll=True, paginate=True, max_pages=10)
-                else:
-                    result = scrape_website(url)
+                result = _scrape_with_retailer_options(retailer_label, url)
                 if result:
                     cleaned_content = clean_body_content(result)
                     if not cleaned_content or not cleaned_content.strip():

@@ -92,9 +92,21 @@ def _click_next_page(driver):
         except Exception:
             return False
 
+    def _maybe_navigate_href(element):
+        try:
+            href = (element.get_attribute("href") or "").strip()
+            if not href or href.startswith("javascript:") or href == "#":
+                return False
+            driver.get(href)
+            return True
+        except Exception:
+            return False
+
     for selector in next_selectors:
         elements = driver.find_elements(By.CSS_SELECTOR, selector)
         for element in elements:
+            if _maybe_navigate_href(element):
+                return True
             if _try_click(element):
                 return True
 
@@ -108,6 +120,8 @@ def _click_next_page(driver):
     for xpath in xpath_candidates:
         elements = driver.find_elements(By.XPATH, xpath)
         for element in elements:
+            if _maybe_navigate_href(element):
+                return True
             if _try_click(element):
                 return True
 
@@ -138,6 +152,8 @@ def _click_next_page(driver):
         )
         elements = driver.find_elements(By.XPATH, next_num_xpath)
         for element in elements:
+            if _maybe_navigate_href(element):
+                return True
             if _try_click(element):
                 return True
 
@@ -162,6 +178,16 @@ def _click_next_page(driver):
             """
         )
         if clicked:
+            try:
+                candidates = driver.find_elements(By.CSS_SELECTOR, "a,button,[role='button']")
+                for element in candidates:
+                    text = (element.text or element.get_attribute("aria-label") or element.get_attribute("title") or "").strip().lower()
+                    if text and (text == ">" or text == "›" or text == "»" or "next" in text):
+                        if _maybe_navigate_href(element):
+                            return True
+                        break
+            except Exception:
+                pass
             return True
     except Exception:
         pass
@@ -264,6 +290,85 @@ def _trigger_hide_out_of_stock(driver):
     return False
 
 
+def _trigger_spar2u_in_stock_filter(driver):
+        script = """
+        const setChecked = (input, checked) => {
+            const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'checked');
+            if (descriptor && descriptor.set) {
+                descriptor.set.call(input, checked);
+            } else {
+                input.checked = checked;
+            }
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        };
+
+        // Expand the Availability accordion if it is collapsible.
+        const availabilityDetails = Array.from(document.querySelectorAll('details')).find(d => {
+            const txt = ((d.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase());
+            return txt.includes('availability');
+        });
+        if (availabilityDetails && !availabilityDetails.open) {
+            availabilityDetails.open = true;
+            availabilityDetails.dispatchEvent(new Event('toggle', { bubbles: true }));
+        }
+
+        const inStock = document.getElementById('Filter-filter.v.availability-1');
+        const outOfStock = document.getElementById('Filter-filter.v.availability-2');
+
+        if (!inStock) {
+            return { clicked: false, reason: 'in-stock-checkbox-not-found' };
+        }
+
+        const inStockLabel = document.querySelector("label[for='Filter-filter.v.availability-1']");
+        const outOfStockLabel = document.querySelector("label[for='Filter-filter.v.availability-2']");
+
+        // Ensure only "In stock" is active.
+        if (outOfStock && outOfStock.checked) {
+            if (outOfStockLabel) {
+                outOfStockLabel.scrollIntoView({ block: 'center' });
+                outOfStockLabel.click();
+            } else {
+                setChecked(outOfStock, false);
+            }
+        }
+
+        if (!inStock.checked) {
+            if (inStockLabel) {
+                inStockLabel.scrollIntoView({ block: 'center' });
+                inStockLabel.click();
+            } else {
+                setChecked(inStock, true);
+            }
+        }
+
+        return { clicked: !!inStock.checked, alreadyChecked: !!inStock.checked };
+        """
+
+        try:
+                result = driver.execute_script(script)
+                if isinstance(result, dict) and result.get("clicked"):
+                        return True
+        except Exception:
+                pass
+
+        for attempt in range(5):
+                try:
+                        driver.execute_script("window.scrollBy(0, window.innerHeight * 0.35);")
+                except Exception:
+                        pass
+                time.sleep(0.8)
+
+                try:
+                        result = driver.execute_script(script)
+                        if isinstance(result, dict) and result.get("clicked"):
+                                return True
+                except Exception:
+                        pass
+
+        return False
+
+
 def _is_driver_alive(driver):
     if driver is None:
         return False
@@ -350,6 +455,27 @@ def scrape_website(website, wait_seconds=45, slow_scroll=False, paginate=False, 
                     print(f"Keells pre-scrape click exception: {e}")
                 time.sleep(1.0)
 
+        if "spar2u.lk" in website.lower():
+            print("Spar 2U detected — attempting initial In stock filter click...")
+            for attempt in range(5):
+                try:
+                    print(f"_trigger_spar2u_in_stock_filter attempt {attempt+1}")
+                    in_stock_clicked = _trigger_spar2u_in_stock_filter(driver)
+                    print(f"_trigger_spar2u_in_stock_filter returned: {in_stock_clicked}")
+                    if in_stock_clicked:
+                        time.sleep(2.0)
+                        if _is_driver_alive(driver):
+                            try:
+                                wait.until(
+                                    lambda d: "in stock" in (d.find_element(By.TAG_NAME, "body").text or "").lower()
+                                )
+                            except Exception:
+                                pass
+                        break
+                except Exception as e:
+                    print(f"Spar 2U pre-scrape click exception: {e}")
+                time.sleep(1.0)
+
         try:
             wait.until(
                 EC.presence_of_element_located((
@@ -431,9 +557,16 @@ def scrape_website(website, wait_seconds=45, slow_scroll=False, paginate=False, 
             return page_html
 
         html_pages = []
-        max_pages_to_scrape = max(1, max_pages if paginate else 1)
+        max_pages_to_scrape = None if paginate and max_pages is None else max(1, max_pages if paginate else 1)
+        page_idx = 0
+        seen_page_urls = set()
 
-        for page_idx in range(max_pages_to_scrape):
+        while True:
+            current_page_url = driver.current_url
+            if current_page_url in seen_page_urls:
+                break
+            seen_page_urls.add(current_page_url)
+
             # If Keells page, attempt to expand the list via "View All" on the first page
             if "keellssuper.com" in website.lower() and page_idx == 0:
                 try:
@@ -443,13 +576,22 @@ def scrape_website(website, wait_seconds=45, slow_scroll=False, paginate=False, 
                 except Exception:
                     pass
 
+            if "spar2u.lk" in website.lower() and page_idx == 0:
+                try:
+                    _trigger_spar2u_in_stock_filter(driver)
+                    time.sleep(1.0)
+                except Exception:
+                    pass
+
             _scroll_current_page()
             page_html = _capture_html_with_network()
 
             if page_html and len(page_html.strip()) >= 200:
                 html_pages.append(page_html)
 
-            if page_idx == max_pages_to_scrape - 1:
+            page_idx += 1
+
+            if max_pages_to_scrape is not None and page_idx >= max_pages_to_scrape:
                 break
 
             if not paginate:
@@ -470,15 +612,9 @@ def scrape_website(website, wait_seconds=45, slow_scroll=False, paginate=False, 
             time.sleep(2.0)
             after_url = driver.current_url
 
-            # If URL and visible page do not change, stop to avoid loops
-            if before_url == after_url:
-                # keep one extra attempt only when new products may still load via JS pagination
-                try:
-                    WebDriverWait(driver, 8).until(
-                        lambda d: len(d.find_elements(By.CSS_SELECTOR, ".product-item, .product-content, .product-card, [class*='product'], [data-testid*='product']")) > 0
-                    )
-                except TimeoutException:
-                    break
+            # Stop as soon as pagination stops advancing to a new URL.
+            if before_url == after_url or after_url in seen_page_urls:
+                break
 
         html = "\n\n<!-- PAGE_SPLIT -->\n\n".join(html_pages)
         if not html or len(html.strip()) < 200:
