@@ -47,6 +47,7 @@ model Product {
   categoryId   String
   category     Category @relation(fields: [categoryId], references: [id])
   prices       Price[]
+  searchVector String?  @map("search_vector") @db.String(255)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

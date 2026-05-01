@@ -68,3 +68,20 @@ export interface ApiProduct {
   category?: ApiCategory | null
   prices: ApiPrice[]
 }
+
+export interface ProcessListRequestItem {
+  name: string
+  quantity: number
+}
+
+export interface ProductMatchCandidate {
+  similarity: number
+  product: ApiProduct
+}
+
+export interface ProcessListResult {
+  inputName: string
+  quantity: number
+  bestMatch: ProductMatchCandidate | null
+  alternatives: ProductMatchCandidate[]
+}

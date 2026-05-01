@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, UniqueConstraint, func, text
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -51,6 +52,7 @@ class Product(Base):
     nameSinhala: Mapped[str] = mapped_column("namesinhala", String, nullable=False)
     image: Mapped[str] = mapped_column("image", String, nullable=False)
     categoryId: Mapped[str] = mapped_column("categoryid", String, ForeignKey("categories.id"), nullable=False)
+    search_vector: Mapped[str] = mapped_column(TSVECTOR, nullable=True)
     createdAt: Mapped[datetime] = mapped_column("createdat", DateTime(timezone=False), server_default=func.now())
     updatedAt: Mapped[datetime] = mapped_column(
         "updatedat", DateTime(timezone=False), default=datetime.utcnow, onupdate=datetime.utcnow

@@ -1,4 +1,4 @@
-import type { ApiProduct } from '../types'
+import type { ApiProduct, ProcessListRequestItem, ProcessListResult } from '../types'
 
 const API_BASE_URL = 'http://localhost:5000/api'
 const TOKEN_KEY = 'pricepulse_token'
@@ -83,6 +83,13 @@ export const api = {
 
     getByCategory: async (categoryId: string) => {
       return requestJson<ApiProduct[]>(`${API_BASE_URL}/products/category/${categoryId}`)
+    },
+
+    processList: async (items: ProcessListRequestItem[], candidateLimit: number = 5) => {
+      return requestJson<ProcessListResult[]>(`${API_BASE_URL}/products/process-list`, {
+        method: 'POST',
+        body: JSON.stringify({ items, candidateLimit }),
+      })
     },
   },
 

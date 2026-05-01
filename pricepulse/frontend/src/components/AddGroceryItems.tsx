@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Plus, Minus, PlusCircle } from 'lucide-react'
 import type { Product } from '../types'
+import type { ProcessListResult } from '../types'
+import { api } from '../services/api'
+import { mapApiProductToProduct } from '../services/productMapper'
 
 interface AddGroceryItemsProps {
   products: Product[]
@@ -11,6 +14,10 @@ export function AddGroceryItems({ products, onAddToBasket }: AddGroceryItemsProp
   const [selectedCategory, setSelectedCategory] = useState<string>('')
   const [customInput, setCustomInput] = useState('')
   const [quantities, setQuantities] = useState<Record<string, number>>({})
+  const [pendingItems, setPendingItems] = useState<string[]>([])
+  const [isProcessingItems, setIsProcessingItems] = useState(false)
+  const [processError, setProcessError] = useState<string | null>(null)
+  const [processedResults, setProcessedResults] = useState<ProcessListResult[]>([])
 
   const categories = useMemo(() => {
     const seen = new Set<string>()
@@ -44,35 +51,43 @@ export function AddGroceryItems({ products, onAddToBasket }: AddGroceryItemsProp
 
   const handleAddCustomItems = () => {
     if (!customInput.trim()) return
-    
-    const items = customInput.split(',').map((item) => item.trim()).filter(Boolean)
-    
-    items.forEach((itemName) => {
-      const normalizedQuery = itemName.toLowerCase()
-      const matchedProduct = products.find(
-        (product) =>
-          product.name.toLowerCase().includes(normalizedQuery) ||
-          product.nameSinhala?.toLowerCase().includes(normalizedQuery) ||
-          product.category.toLowerCase().includes(normalizedQuery)
-      )
-      
-      if (matchedProduct) {
-        onAddToBasket(matchedProduct, 1)
-      } else {
-        // Create a custom product entry
-        const customProduct: Product = {
-          id: `custom-${Date.now()}-${Math.random()}`,
-          name: itemName,
-          image: 'https://images.unsplash.com/photo-1534723452862-4c874018d66d?w=200&h=200&fit=crop',
-          prices: { cargills: 0, keells: 0, sathosa: 0 },
-          lastUpdated: new Date().toISOString(),
-          category: 'Custom',
-        }
-        onAddToBasket(customProduct, 1)
-      }
-    })
-    
+
+    const items = customInput
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean)
+
+    if (items.length === 0) return
+
+    setPendingItems((prev) => [...prev, ...items])
     setCustomInput('')
+  }
+
+  const handleProcessItems = async () => {
+    if (pendingItems.length === 0 || isProcessingItems) return
+
+    setIsProcessingItems(true)
+    setProcessError(null)
+
+    try {
+      const results = await api.products.processList(
+        pendingItems.map((itemName) => ({ name: itemName, quantity: 1 }))
+      )
+
+      setProcessedResults(results)
+
+      results.forEach((result) => {
+        if (!result.bestMatch) return
+        const mappedProduct = mapApiProductToProduct(result.bestMatch.product)
+        onAddToBasket(mappedProduct, result.quantity)
+      })
+
+      setPendingItems([])
+    } catch (error) {
+      setProcessError(error instanceof Error ? error.message : 'Failed to process grocery items.')
+    } finally {
+      setIsProcessingItems(false)
+    }
   }
 
   return (
@@ -100,13 +115,69 @@ export function AddGroceryItems({ products, onAddToBasket }: AddGroceryItemsProp
             onClick={handleAddCustomItems}
             disabled={!customInput.trim()}
             className="px-4 bg-primary-600 text-white rounded-xl hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            title="Add to processing queue"
           >
             <PlusCircle className="w-5 h-5" />
           </button>
         </div>
-        <p className="text-xs text-grey-500 mt-1">
-          Press Enter or click + to add items
-        </p>
+
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleProcessItems}
+            disabled={pendingItems.length === 0 || isProcessingItems}
+            className="px-4 py-2 rounded-lg bg-secondary text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isProcessingItems ? 'Processing...' : `Process (${pendingItems.length})`}
+          </button>
+          <p className="text-xs text-grey-500">
+            Press Enter or click + to queue items, then Process.
+          </p>
+        </div>
+
+        {pendingItems.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {pendingItems.map((item, index) => (
+              <span
+                key={`${item}-${index}`}
+                className="px-2 py-1 bg-grey-100 text-grey-700 rounded-full text-xs"
+              >
+                {item}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {processError && <p className="text-xs text-danger mt-2">{processError}</p>}
+
+        {processedResults.length > 0 && (
+          <div className="mt-3 p-3 rounded-xl border border-grey-200 bg-grey-50 space-y-2">
+            <p className="text-sm font-semibold text-grey-800">Processed matches</p>
+            {processedResults.map((result, idx) => (
+              <div key={`${result.inputName}-${idx}`} className="text-xs text-grey-700">
+                <p>
+                  <span className="font-medium">{result.inputName}</span>
+                  {' -> '}
+                  {result.bestMatch ? (
+                    <>
+                      <span className="font-medium">{result.bestMatch.product.name}</span>
+                      {' ('}
+                      {(result.bestMatch.similarity * 100).toFixed(1)}%
+                      {')'}
+                    </>
+                  ) : (
+                    <span className="text-danger">No match found</span>
+                  )}
+                </p>
+                {result.alternatives.length > 0 && (
+                  <p className="text-grey-500 mt-0.5">
+                    Alternatives: {result.alternatives.map((alt) => alt.product.name).join(', ')}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Category Buttons */}

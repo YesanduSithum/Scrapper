@@ -31,3 +31,5 @@ lerna-debug.log*
 
 # Testing
 coverage/
+
+pricepulse/SETUP_INSTRUCTIONS.md
