@@ -1,6 +1,7 @@
 from datetime import datetime
 import re
 from difflib import SequenceMatcher
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -12,6 +13,7 @@ from app.db.session import get_db
 from app.utils.responses import message_response, success_response
 from app.utils.serializers import serialize_product
 from app.utils.search import search_products_by_name, process_grocery_list as search_process_grocery_list
+from app.utils.cache import get_cache_manager
 
 
 router = APIRouter(prefix="/products", tags=["products"])
@@ -38,13 +40,28 @@ class ProductUpdateRequest(BaseModel):
 
 
 class ProcessListItemRequest(BaseModel):
-    name: str
-    quantity: int = 1
+    name: str = Field(..., min_length=1, description="Product name to search for")
+    quantity: int = Field(default=1, ge=1, description="Quantity of item")
 
 
 class ProcessListRequest(BaseModel):
-    items: list[ProcessListItemRequest]
-    candidateLimit: int = 5
+    items: list[ProcessListItemRequest] = Field(..., min_items=1, description="List of items to process")
+    categoryId: Optional[str] = Field(None, description="Optional category ID to filter search")
+    candidateLimit: int = Field(default=5, ge=1, le=10, description="Max candidates per item (1-10)")
+    minSimilarity: float = Field(default=0.1, ge=0.0, le=1.0, description="Minimum similarity threshold (0.0-1.0)")
+
+
+class ProcessedItemResponse(BaseModel):
+    userInput: str
+    quantity: int
+    bestMatch: Optional[dict] = None
+    alternatives: list[dict] = []
+
+
+class ProcessListResponse(BaseModel):
+    items: list[ProcessedItemResponse]
+    totalItems: int
+    processedAt: str
 
 
 def _product_base_query():
@@ -170,54 +187,112 @@ def update_product(product_id: str, payload: ProductUpdateRequest, db: Session =
     return success_response(serialize_product(refreshed_product))
 
 
-@router.post("/process-list")
+@router.post("/process-list", response_model=ProcessListResponse)
 def process_grocery_list(payload: ProcessListRequest, db: Session = Depends(get_db)):
-    candidate_limit = max(1, min(payload.candidateLimit, 10))
-    query_items = [item for item in payload.items if item.name.strip()]
-
-    if not query_items:
+    """
+    Process a grocery list and find matching products.
+    
+    Returns best matches and alternatives for each item with similarity scores.
+    Results are cached for performance optimization.
+    
+    Args:
+        payload: ProcessListRequest with items to process
+        db: Database session
+    
+    Returns:
+        ProcessListResponse with processed items and matches
+    """
+    # Validate input
+    if not payload.items:
         raise HTTPException(status_code=400, detail="At least one grocery item is required")
-
-    products = db.scalars(_product_base_query()).all()
-
-    matches = []
-    for query_item in query_items:
-        ranked = sorted(
-            (
-                {
-                    "product": product,
-                    "score": _score_product_match(query_item.name, product),
-                }
-                for product in products
-            ),
-            key=lambda entry: entry["score"],
-            reverse=True,
-        )[:candidate_limit]
-
-        best_match = ranked[0] if ranked else None
-        alternatives = ranked[1:] if len(ranked) > 1 else []
-
-        matches.append(
-            {
-                "inputName": query_item.name,
-                "quantity": max(1, query_item.quantity),
-                "bestMatch": {
-                    "similarity": round(best_match["score"], 4),
-                    "product": serialize_product(best_match["product"]),
-                }
-                if best_match
-                else None,
-                "alternatives": [
-                    {
-                        "similarity": round(item["score"], 4),
-                        "product": serialize_product(item["product"]),
-                    }
-                    for item in alternatives
-                ],
-            }
+    
+    # Use search utility with category filtering
+    results = search_process_grocery_list(
+        items=payload.items,
+        db=db,
+        category_id=payload.categoryId,
+        candidates_per_item=payload.candidateLimit,
+        min_score=payload.minSimilarity,
+    )
+    
+    # Format response
+    processed_items = []
+    for result in results:
+        best_match = result.get("bestMatch")
+        candidates = result.get("candidates", [])
+        alternatives = candidates[1:] if len(candidates) > 1 else []
+        
+        processed_items.append(
+            ProcessedItemResponse(
+                userInput=result["userInput"],
+                quantity=result["quantity"],
+                bestMatch=best_match,
+                alternatives=alternatives,
+            )
         )
+    
+    return ProcessListResponse(
+        items=processed_items,
+        totalItems=len(processed_items),
+        processedAt=datetime.utcnow().isoformat(),
+    )
 
-    return success_response(matches)
+
+@router.get("/search-alternatives/{product_id}")
+def get_product_alternatives(
+    product_id: str,
+    limit: int = Query(default=5, ge=1, le=10),
+    db: Session = Depends(get_db),
+):
+    """
+    Get alternative/similar products to a given product.
+    
+    Uses the product's name to find similar products in same category.
+    
+    Args:
+        product_id: ID of the product to find alternatives for
+        limit: Maximum number of alternatives to return
+        db: Database session
+    
+    Returns:
+        List of similar products with similarity scores
+    """
+    product = db.scalar(_product_base_query().where(Product.id == product_id))
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    # Search for similar products in the same category
+    alternatives = search_products_by_name(
+        query=product.name,
+        db=db,
+        category_id=product.categoryId,
+        limit=limit + 1,  # +1 to account for the product itself
+        min_score=0.1,
+    )
+    
+    # Filter out the product itself
+    similar_products = [
+        {
+            "id": alt["product"].id,
+            "name": alt["product"].name,
+            "nameSinhala": alt["product"].nameSinhala,
+            "image": alt["product"].image,
+            "categoryId": alt["product"].categoryId,
+            "similarity": round(alt["score"], 3),
+            "prices": [
+                {
+                    "retailerId": price.retailerId,
+                    "retailer": price.retailer.name if price.retailer else None,
+                    "price": price.price,
+                }
+                for price in alt["product"].prices
+            ],
+        }
+        for alt in alternatives
+        if alt["product"].id != product_id
+    ][:limit]
+    
+    return success_response(similar_products)
 
 
 @router.delete("/{product_id}")
