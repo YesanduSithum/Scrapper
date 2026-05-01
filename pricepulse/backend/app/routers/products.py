@@ -187,7 +187,7 @@ def update_product(product_id: str, payload: ProductUpdateRequest, db: Session =
     return success_response(serialize_product(refreshed_product))
 
 
-@router.post("/process-list", response_model=ProcessListResponse)
+@router.post("/process-list")
 def process_grocery_list(payload: ProcessListRequest, db: Session = Depends(get_db)):
     """
     Process a grocery list and find matching products.
@@ -200,7 +200,7 @@ def process_grocery_list(payload: ProcessListRequest, db: Session = Depends(get_
         db: Database session
     
     Returns:
-        ProcessListResponse with processed items and matches
+        Processed items with matches and alternatives
     """
     # Validate input
     if not payload.items:
@@ -223,19 +223,21 @@ def process_grocery_list(payload: ProcessListRequest, db: Session = Depends(get_
         alternatives = candidates[1:] if len(candidates) > 1 else []
         
         processed_items.append(
-            ProcessedItemResponse(
-                userInput=result["userInput"],
-                quantity=result["quantity"],
-                bestMatch=best_match,
-                alternatives=alternatives,
-            )
+            {
+                "userInput": result["userInput"],
+                "quantity": result["quantity"],
+                "bestMatch": best_match,
+                "alternatives": alternatives,
+            }
         )
     
-    return ProcessListResponse(
-        items=processed_items,
-        totalItems=len(processed_items),
-        processedAt=datetime.utcnow().isoformat(),
-    )
+    response_data = {
+        "items": processed_items,
+        "totalItems": len(processed_items),
+        "processedAt": datetime.utcnow().isoformat(),
+    }
+    
+    return success_response(response_data)
 
 
 @router.get("/search-alternatives/{product_id}")

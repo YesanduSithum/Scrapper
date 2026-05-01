@@ -91,6 +91,12 @@ export const api = {
         body: JSON.stringify({ items, candidateLimit }),
       })
     },
+
+    getAlternatives: async (productId: string, limit: number = 5) => {
+      return requestJson<ApiProduct[]>(
+        `${API_BASE_URL}/products/search-alternatives/${productId}?limit=${limit}`
+      )
+    },
   },
 
   // Categories endpoints

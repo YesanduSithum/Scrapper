@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Plus, Minus, PlusCircle } from 'lucide-react'
-import type { Product } from '../types'
-import type { ProcessListResult } from '../types'
+import type { Product, ProcessListResult, ProductMatchCandidate } from '../types'
 import { api } from '../services/api'
 import { mapApiProductToProduct } from '../services/productMapper'
+import { ProcessedResults } from './ProcessedResults'
 
 interface AddGroceryItemsProps {
   products: Product[]
@@ -70,10 +70,12 @@ export function AddGroceryItems({ products, onAddToBasket }: AddGroceryItemsProp
     setProcessError(null)
 
     try {
+      console.log('Processing items:', pendingItems)
       const results = await api.products.processList(
         pendingItems.map((itemName) => ({ name: itemName, quantity: 1 }))
       )
 
+      console.log('Process results:', results)
       setProcessedResults(results)
 
       results.forEach((result) => {
@@ -84,10 +86,16 @@ export function AddGroceryItems({ products, onAddToBasket }: AddGroceryItemsProp
 
       setPendingItems([])
     } catch (error) {
+      console.error('Process error:', error)
       setProcessError(error instanceof Error ? error.message : 'Failed to process grocery items.')
     } finally {
       setIsProcessingItems(false)
     }
+  }
+
+  const handleSelectAlternative = (candidate: ProductMatchCandidate, quantity: number) => {
+    const mappedProduct = mapApiProductToProduct(candidate.product)
+    onAddToBasket(mappedProduct, quantity)
   }
 
   return (
@@ -151,32 +159,7 @@ export function AddGroceryItems({ products, onAddToBasket }: AddGroceryItemsProp
         {processError && <p className="text-xs text-danger mt-2">{processError}</p>}
 
         {processedResults.length > 0 && (
-          <div className="mt-3 p-3 rounded-xl border border-grey-200 bg-grey-50 space-y-2">
-            <p className="text-sm font-semibold text-grey-800">Processed matches</p>
-            {processedResults.map((result, idx) => (
-              <div key={`${result.inputName}-${idx}`} className="text-xs text-grey-700">
-                <p>
-                  <span className="font-medium">{result.inputName}</span>
-                  {' -> '}
-                  {result.bestMatch ? (
-                    <>
-                      <span className="font-medium">{result.bestMatch.product.name}</span>
-                      {' ('}
-                      {(result.bestMatch.similarity * 100).toFixed(1)}%
-                      {')'}
-                    </>
-                  ) : (
-                    <span className="text-danger">No match found</span>
-                  )}
-                </p>
-                {result.alternatives.length > 0 && (
-                  <p className="text-grey-500 mt-0.5">
-                    Alternatives: {result.alternatives.map((alt) => alt.product.name).join(', ')}
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
+          <ProcessedResults results={processedResults} onSelectAlternative={handleSelectAlternative} />
         )}
       </div>
 

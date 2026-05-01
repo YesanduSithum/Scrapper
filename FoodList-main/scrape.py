@@ -169,6 +169,101 @@ def _click_next_page(driver):
     return False
 
 
+def _click_view_all(driver):
+    # Try a few XPath-based matches for a 'View All' control, with a tiny retry loop.
+    xpaths = [
+        "//button[contains(translate(normalize-space(.),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'view all')]",
+        "//a[contains(translate(normalize-space(.),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'view all')]",
+        "//*[contains(translate(normalize-space(.),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'view all') and (@role='button' or self::a or self::button)]",
+    ]
+
+    for attempt in range(3):
+        for xp in xpaths:
+            try:
+                elems = driver.find_elements(By.XPATH, xp)
+            except Exception:
+                elems = []
+            for el in elems:
+                try:
+                    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", el)
+                    time.sleep(0.3)
+                    try:
+                        el.click()
+                    except Exception:
+                        try:
+                            ActionChains(driver).move_to_element(el).pause(0.1).click(el).perform()
+                        except Exception:
+                            driver.execute_script("arguments[0].click();", el)
+                    return True
+                except Exception:
+                    continue
+
+        try:
+            driver.execute_script("window.scrollBy(0, window.innerHeight * 0.6);")
+        except Exception:
+            pass
+        time.sleep(0.8)
+
+    return False
+
+
+def _trigger_hide_out_of_stock(driver):
+    # Keells renders this as input#custom-switch with a label that can intercept pointer clicks.
+    # Use direct DOM clicks/events so the toggle still fires when overlays are present.
+    script = """
+    const setChecked = (input, checked) => {
+      const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'checked');
+      if (descriptor && descriptor.set) {
+        descriptor.set.call(input, checked);
+      } else {
+        input.checked = checked;
+      }
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      input.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+    };
+
+    const candidates = [
+      document.querySelector('#custom-switch'),
+      document.querySelector('input[type="checkbox"][id*="custom"]'),
+      Array.from(document.querySelectorAll('input[type="checkbox"]')).find(el => {
+        const text = ((el.getAttribute('aria-label') || '') + ' ' + (el.id || '') + ' ' + (el.name || '')).toLowerCase();
+        return text.includes('hide') || text.includes('out of stock');
+      }),
+    ].filter(Boolean);
+
+    const input = candidates[0] || null;
+    if (!input) return { clicked: false, reason: 'checkbox-not-found' };
+    if (input.checked) return { clicked: true, alreadyChecked: true };
+    input.scrollIntoView({ block: 'center' });
+    setChecked(input, true);
+    return { clicked: true, alreadyChecked: false };
+    """
+
+    try:
+        result = driver.execute_script(script)
+        if isinstance(result, dict) and result.get("clicked"):
+            return True
+    except Exception:
+        pass
+
+    for attempt in range(3):
+        try:
+            driver.execute_script("window.scrollBy(0, window.innerHeight * 0.4);")
+        except Exception:
+            pass
+        time.sleep(0.6)
+
+        try:
+            result = driver.execute_script(script)
+            if isinstance(result, dict) and result.get("clicked"):
+                return True
+        except Exception:
+            pass
+
+    return False
+
+
 def _is_driver_alive(driver):
     if driver is None:
         return False
@@ -236,6 +331,24 @@ def scrape_website(website, wait_seconds=45, slow_scroll=False, paginate=False, 
         print("waiting for Page Loaded ...")
         wait = WebDriverWait(driver, wait_seconds)
         wait.until(lambda d: d.execute_script("return document.readyState") in ("interactive", "complete"))
+
+        # If this is Keells, try expanding the product list immediately.
+        if "keellssuper.com" in website.lower():
+            print("Keells detected — attempting initial Hide Out of Stock / View All clicks...")
+            for attempt in range(5):
+                try:
+                    print(f"_trigger_hide_out_of_stock attempt {attempt+1}")
+                    hide_clicked = _trigger_hide_out_of_stock(driver)
+                    print(f"_trigger_hide_out_of_stock returned: {hide_clicked}")
+                    print(f"_click_view_all attempt {attempt+1}")
+                    clicked = _click_view_all(driver)
+                    print(f"_click_view_all returned: {clicked}")
+                    if hide_clicked or clicked:
+                        time.sleep(2.6)
+                        break
+                except Exception as e:
+                    print(f"Keells pre-scrape click exception: {e}")
+                time.sleep(1.0)
 
         try:
             wait.until(
@@ -321,6 +434,15 @@ def scrape_website(website, wait_seconds=45, slow_scroll=False, paginate=False, 
         max_pages_to_scrape = max(1, max_pages if paginate else 1)
 
         for page_idx in range(max_pages_to_scrape):
+            # If Keells page, attempt to expand the list via "View All" on the first page
+            if "keellssuper.com" in website.lower() and page_idx == 0:
+                try:
+                    _trigger_hide_out_of_stock(driver)
+                    _click_view_all(driver)
+                    time.sleep(1.2)
+                except Exception:
+                    pass
+
             _scroll_current_page()
             page_html = _capture_html_with_network()
 

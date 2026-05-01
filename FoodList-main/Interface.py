@@ -10,8 +10,8 @@ RETAILER_URLS = {
     ],
     "Retailer 2": [
         
-        "https://www.keellssuper.com/biscuits",
         "https://www.keellssuper.com/fresh-vegetables",
+        
          
 
     ],
