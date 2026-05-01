@@ -81,6 +81,7 @@ export interface ProductMatchCandidate {
 
 export interface ProcessListResult {
   inputName: string
+  userInput?: string
   quantity: number
   bestMatch: ProductMatchCandidate | null
   alternatives: ProductMatchCandidate[]

@@ -224,6 +224,7 @@ def process_grocery_list(payload: ProcessListRequest, db: Session = Depends(get_
         
         processed_items.append(
             {
+                "inputName": result["userInput"],
                 "userInput": result["userInput"],
                 "quantity": result["quantity"],
                 "bestMatch": best_match,

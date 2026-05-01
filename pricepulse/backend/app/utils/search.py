@@ -1,6 +1,9 @@
 """
-Search utility module for product matching using fuzzy matching and ranking.
-Optimized for 10K+ products with sub-50ms performance target.
+Search utility module for matching app-user grocery list items against database products.
+
+This module is used when a user types a grocery list item in the app and clicks
+Process. It ranks DB products by how closely they match the user's text,
+including typo tolerance and token similarity.
 """
 
 import re
@@ -37,6 +40,45 @@ def tokenize(value: str) -> set[str]:
     return {token for token in normalize_text(value).split() if token}
 
 
+def _token_similarity(query_tokens: set[str], candidate_tokens: set[str]) -> float:
+    """Compare tokens with typo tolerance.
+
+    This helps with inputs like `kotmle frsh milk` matching
+    `kotmale fresh milk 1 l bottle`.
+    """
+    if not query_tokens or not candidate_tokens:
+        return 0.0
+
+    exact_overlap = len(query_tokens & candidate_tokens) / len(query_tokens | candidate_tokens)
+
+    fuzzy_hits = []
+    candidate_list = list(candidate_tokens)
+    for query_token in query_tokens:
+        best_ratio = 0.0
+        for candidate_token in candidate_list:
+            ratio = SequenceMatcher(None, query_token, candidate_token).ratio()
+            if ratio > best_ratio:
+                best_ratio = ratio
+        fuzzy_hits.append(best_ratio)
+
+    fuzzy_token_score = sum(fuzzy_hits) / len(fuzzy_hits) if fuzzy_hits else 0.0
+
+    return (exact_overlap * 0.45) + (fuzzy_token_score * 0.55)
+
+
+def _phrase_similarity(query: str, candidate: str) -> float:
+    """Compare the full normalized strings."""
+    if not query or not candidate:
+        return 0.0
+
+    ratio = SequenceMatcher(None, query, candidate).ratio()
+
+    if query in candidate or candidate in query:
+        ratio = max(ratio, 1.0)
+
+    return ratio
+
+
 def calculate_similarity_score(query: str, product: Product, category_label: Optional[str] = None) -> float:
     """
     Calculate similarity score between query and product.
@@ -58,32 +100,17 @@ def calculate_similarity_score(query: str, product: Product, category_label: Opt
     if not normalized_query:
         return 0.0
 
-    # 1. Sequence Matching Score (60% weight)
-    # Measures how similar the normalized query string is to product names
     product_names = [product.name or "", product.nameSinhala or ""]
-    sequence_scores = [
-        SequenceMatcher(None, normalized_query, normalize_text(name)).ratio()
-        for name in product_names
-    ]
+    sequence_scores = [_phrase_similarity(normalized_query, normalize_text(name)) for name in product_names]
     best_sequence_score = max(sequence_scores) if sequence_scores else 0.0
 
-    # 2. Token Overlap Score (30% weight)
-    # Measures how many words from the query appear in the product name
     query_tokens = tokenize(normalized_query)
-    
-    # Build candidate tokens from product name, sinhala name, and category
     candidate_tokens = tokenize(product.name) | tokenize(product.nameSinhala)
     if category_label:
         candidate_tokens |= tokenize(category_label)
-    
-    if query_tokens and candidate_tokens:
-        # Jaccard similarity: intersection / union
-        token_overlap_score = len(query_tokens & candidate_tokens) / len(query_tokens | candidate_tokens)
-    else:
-        token_overlap_score = 0.0
 
-    # 3. Substring Match Score (10% weight)
-    # Bonus for exact substring matches
+    token_score = _token_similarity(query_tokens, candidate_tokens)
+
     substring_score = 0.0
     for name in product_names:
         normalized_name = normalize_text(name)
@@ -91,11 +118,11 @@ def calculate_similarity_score(query: str, product: Product, category_label: Opt
             substring_score = 1.0
             break
 
-    # Weighted combination
+    # Weighted combination tuned for noisy grocery-list input.
     final_score = (
-        (best_sequence_score * 0.6) +
-        (token_overlap_score * 0.3) +
-        (substring_score * 0.1)
+        (best_sequence_score * 0.45)
+        + (token_score * 0.45)
+        + (substring_score * 0.10)
     )
     
     return final_score
@@ -124,7 +151,6 @@ def search_products_by_name(
     if not query or not query.strip():
         return []
 
-    # Build base query
     stmt = select(Product).options(
         Product.category,
         Product.prices,
@@ -134,10 +160,8 @@ def search_products_by_name(
     if category_id:
         stmt = stmt.where(Product.categoryId == category_id)
     
-    # Execute query
     products = db.scalars(stmt).all()
     
-    # Score and filter products
     scored_products = []
     for product in products:
         category_label = product.category.label if product.category else ""
@@ -149,7 +173,6 @@ def search_products_by_name(
                 "score": score,
             })
     
-    # Sort by score (descending) and return top results
     scored_products.sort(key=lambda x: x["score"], reverse=True)
     return scored_products[:limit]
 

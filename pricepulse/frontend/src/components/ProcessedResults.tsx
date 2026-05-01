@@ -38,12 +38,13 @@ export function ProcessedResults({ results, onSelectAlternative }: ProcessedResu
 
       <div className="space-y-2">
         {results.map((result, idx) => {
-          const isExpanded = expandedItems.has(result.inputName)
+          const itemName = result.inputName || result.userInput || ''
+          const isExpanded = expandedItems.has(itemName)
           const hasAlternatives = result.alternatives && result.alternatives.length > 0
 
           return (
             <div
-              key={`${result.inputName}-${idx}`}
+              key={`${itemName}-${idx}`}
               className="rounded-lg border border-grey-200 bg-white overflow-hidden hover:shadow-md transition-shadow"
             >
               {/* Main Result Item */}
@@ -65,7 +66,7 @@ export function ProcessedResults({ results, onSelectAlternative }: ProcessedResu
                   {/* Item Info */}
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-medium text-grey-500 uppercase tracking-wide">
-                      {result.userInput}
+                      {itemName}
                     </p>
                     {result.bestMatch ? (
                       <div>
@@ -94,7 +95,7 @@ export function ProcessedResults({ results, onSelectAlternative }: ProcessedResu
                   {hasAlternatives && (
                     <button
                       type="button"
-                      onClick={() => toggleExpanded(result.inputName)}
+                      onClick={() => toggleExpanded(itemName)}
                       className="flex-shrink-0 p-2 hover:bg-grey-100 rounded-lg transition-colors"
                       aria-label="Toggle alternatives"
                     >
@@ -129,7 +130,7 @@ export function ProcessedResults({ results, onSelectAlternative }: ProcessedResu
                   </p>
                   {result.alternatives.map((alt, altIdx) => (
                     <div
-                      key={`${result.inputName}-alt-${altIdx}`}
+                      key={`${itemName}-alt-${altIdx}`}
                       className="flex items-center gap-2 p-2 bg-white rounded-lg border border-grey-200 hover:border-primary-300 transition-colors"
                     >
                       <div className="flex-1 min-w-0">
