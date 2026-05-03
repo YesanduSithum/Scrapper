@@ -4,12 +4,19 @@ from db_pipeline import normalize_scraped_items, upsert_products_and_prices, inf
 
 
 def _scrape_with_retailer_options(retailer_label: str, url: str):
-    if retailer_label == "Retailer 2":
-        return scrape_website(url, wait_seconds=60, slow_scroll=True, paginate=True, max_pages=10)
+    # Retailer 1: Cargills - Enable pagination to scrape all pages
+    if retailer_label == "Retailer 1":
+        return scrape_website(url, wait_seconds=60, slow_scroll=True, paginate=True, max_pages=None)
 
+    # Retailer 2: Keells - Scrape all pages (changed from max_pages=10 to max_pages=None)
+    if retailer_label == "Retailer 2":
+        return scrape_website(url, wait_seconds=60, slow_scroll=True, paginate=True, max_pages=None)
+
+    # Retailer 3: Spar2u - Scrape all pages
     if retailer_label == "Retailer 3":
         return scrape_website(url, wait_seconds=60, slow_scroll=True, paginate=True, max_pages=None)
 
+    # Retailer 4: Glomark - Single page with Show More button loading (no pagination)
     if retailer_label == "Retailer 4":
         return scrape_website(url, wait_seconds=60, slow_scroll=True, paginate=False, max_pages=1)
 
@@ -18,22 +25,81 @@ def _scrape_with_retailer_options(retailer_label: str, url: str):
 RETAILER_URLS = {
     "Retailer 1": [
         "https://cargillsonline.com/Product/Dairy?IC=Ng==&NC=RGFpcnk=",
-        """https://cargillsonline.com/Product/Baby-Products?IC=Mg==&NC=QmFieSBQcm9kdWN0cw==",
-        "https://cargillsonline.com/Product/Beverages?IC=Mw==&NC=QmV2ZXJhZ2Vz""",
+        "https://cargillsonline.com/Product/Baby-Products?IC=Mg==&NC=QmFieSBQcm9kdWN0cw==",
+        "https://cargillsonline.com/Product/Beverages?IC=Mw==&NC=QmV2ZXJhZ2Vz",
+        "https://cargillsonline.com/Product/Food-Cupboard?IC=Nw==&NC=Rm9vZCBDdXBib2FyZA==",
+        "https://cargillsonline.com/Product/Household?IC=MTA=&NC=SG91c2Vob2xk",
+        "https://cargillsonline.com/Product/Tea-And-Coffee?IC=MjE=&NC=VGVhICYgQ29mZmVl",
+     
     ],
     "Retailer 2": [
-        
+    
+        "https://www.keellssuper.com/keells-promotions",
+        "https://www.keellssuper.com/showcaseint/items/keells_exclusives",
+        "https://www.keellssuper.com/product?cat=5&s=1", 
+        "https://www.keellssuper.com/showcaseint/items/keells_products",
+        "https://www.keellssuper.com/",
+        "https://www.keellssuper.com/snacks",
+        "https://www.keellssuper.com/biscuits",
+        "https://www.keellssuper.com/eggs",
+        "https://www.keellssuper.com/bakery",
+        "https://www.keellssuper.com/rice",
+        "https://www.keellssuper.com/soya_meat", 
+        "https://www.keellssuper.com/sugar",
+        "https://www.keellssuper.com/confectionery",
+        "https://www.keellssuper.com/bakery",
+        "https://www.keellssuper.com/family-consumption-beverages",
+        "https://www.keellssuper.com/water",
+        "https://www.keellssuper.com/malt-chocolate-drinks",
+        "https://www.keellssuper.com/powdered-liquid-milk",
+        "https://www.keellssuper.com/tea",
+        "https://www.keellssuper.com/cheese",
+        "https://www.keellssuper.com/yoghurts-curd",
+        "https://www.keellssuper.com/frozen-rtc-snacks",
+        "https://www.keellssuper.com/pasta-noodles",
         "https://www.keellssuper.com/fresh-vegetables",
-        
+        "https://www.keellssuper.com/fresh-fruits",
+        "https://www.keellssuper.com/poultry",
+        "https://www.keellssuper.com/fresh-fish",
+        "https://www.keellssuper.com/red-meats",
+        "https://www.keellssuper.com/chilled-desserts",
+        "https://www.keellssuper.com/showcaseint/items/keells_products",
          
 
     ],
     "Retailer 3": [
-        "https://spar2u.lk/collections/biscuits/Biscuits",
+        "https://spar2u.lk/collections/meat",
+        "https://spar2u.lk/collections/bakery",
+        "https://spar2u.lk/collections/vegetables",
+        "http://spar2u.lk/collections/fruits",
+        "https://spar2u.lk/collections/grocery",
+        "https://spar2u.lk/collections/powdered-milk",
+        "https://spar2u.lk/collections/liquid-milk",
+        "https://spar2u.lk/collections/tea",
+        "https://spar2u.lk/collections/coffee",
+        "https://spar2u.lk/collections/desserts",
+        "https://spar2u.lk/collections/sweets-snacks",
+        "https://spar2u.lk/collections/health-beauty",
+        "https://spar2u.lk/collections/chilled",
+        "https://spar2u.lk/collections/frozens",
+        "https://spar2u.lk/collections/household",
+        "https://spar2u.lk/collections/general-merchandise",
+        "http://spar2u.lk/collections/spar-local",
+        "https://spar2u.lk/collections/pet-care",
    
     ],
     "Retailer 4": [
+        "https://glomark.lk/deal-page",
+        "https://glomark.lk/beverages/dp/13",
+        "https://glomark.lk/bakery/dp/22",
+        "https://glomark.lk/chilled/dp/18",
         "https://glomark.lk/fresh/dp/16",
+        "https://glomark.lk/frozen/dp/19",
+        "https://glomark.lk/grocery/dp/15",
+        "https://glomark.lk/homeware/dp/17",
+        "https://glomark.lk/household/dp/14",
+        "https://glomark.lk/pharmaceuticals/dp/20",
+        "https://glomark.lk/glogreen-bags/dp/145",
     ],
 }
 

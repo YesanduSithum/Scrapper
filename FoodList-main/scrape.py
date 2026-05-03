@@ -51,7 +51,19 @@ def _is_valid_product_name(name):
     return True
 
 
-def _click_next_page(driver):
+def _click_next_page(driver, retailer_hint=""):
+    """
+    Click next page button with support for various pagination styles.
+    Includes special handling for Keells (Retailer 2) which uses button-based pagination.
+    
+    Keells structure:
+    <div class="pagination-wrapper">
+        <button class="page-number-button active"><span>1</span></button>
+        <button class="page-number-button"><span>2</span></button>
+        ...
+        <button class="page-number-button-arrow"><img alt="" src="/static/media/Right Arrow.ea9baf5b.svg"></button>
+    </div>
+    """
     next_selectors = [
         "a[rel='next']",
         "button[rel='next']",
@@ -101,6 +113,45 @@ def _click_next_page(driver):
             return True
         except Exception:
             return False
+
+    # Special handling for Keells (Retailer 2) - uses button-based pagination
+    if "keells" in retailer_hint.lower() or "keellssuper" in driver.current_url.lower():
+        print("Attempting Keells-specific button-based pagination...")
+        try:
+            # Find all page number buttons
+            page_buttons = driver.find_elements(By.CSS_SELECTOR, ".pagination-wrapper button.page-number-button")
+            
+            # Find the currently active page button
+            active_button = None
+            for btn in page_buttons:
+                if "active" in (btn.get_attribute("class") or "").lower():
+                    active_button = btn
+                    break
+            
+            if active_button:
+                # Get the current page number
+                current_text = (active_button.text or "").strip()
+                if current_text.isdigit():
+                    current_page = int(current_text)
+                    next_page = current_page + 1
+                    print(f"Current page: {current_page}, looking for page {next_page}")
+                    
+                    # Find and click the next page button
+                    for btn in page_buttons:
+                        if (btn.text or "").strip() == str(next_page):
+                            print(f"Found page button {next_page}, clicking it")
+                            if _try_click(btn):
+                                return True
+            
+            # If no next number button found, try the arrow button (next)
+            arrow_button = driver.find_elements(By.CSS_SELECTOR, ".pagination-wrapper button.page-number-button-arrow")
+            if arrow_button:
+                print("Found arrow/next button, clicking it")
+                if _try_click(arrow_button[0]):
+                    return True
+                    
+        except Exception as e:
+            print(f"Keells pagination error: {e}")
 
     for selector in next_selectors:
         elements = driver.find_elements(By.CSS_SELECTOR, selector)
@@ -192,6 +243,7 @@ def _click_next_page(driver):
     except Exception:
         pass
 
+    print("_click_next_page: No next button found")
     return False
 
 
@@ -639,12 +691,38 @@ def scrape_website(website, wait_seconds=45, slow_scroll=False, paginate=False, 
         max_pages_to_scrape = None if paginate and max_pages is None else max(1, max_pages if paginate else 1)
         page_idx = 0
         seen_page_urls = set()
+        consecutive_failed_clicks = 0
+        max_failed_clicks = 3
+        seen_keells_pages = set()  # Track Keells pages by content hash instead of URL
+        
+        def _keells_content_signature():
+            try:
+                sig = driver.execute_script(
+                    "return Array.from(document.querySelectorAll('.product-item, .product-card, [class*=\'product\'], [data-testid*=\'product\']')).map(n=> (n.innerText || n.textContent || '') .trim()).join('\n---\n');"
+                )
+                if not sig:
+                    # fallback to body text
+                    sig = driver.execute_script("return (document.body && document.body.innerText) ? document.body.innerText.trim() : '';")
+                return sig
+            except Exception:
+                try:
+                    return driver.execute_script("return (document.body && document.body.innerText) ? document.body.innerText.trim() : '';")
+                except Exception:
+                    return ""
 
         while True:
             current_page_url = driver.current_url
-            if current_page_url in seen_page_urls:
-                break
-            seen_page_urls.add(current_page_url)
+            # For Keells pagination is button-based and the URL may not change.
+            # Skip the URL-duplicate early exit for Keells and rely on content hashing instead.
+            if "keellssuper.com" not in website.lower():
+                if current_page_url in seen_page_urls:
+                    print(f"URL already seen: {current_page_url}. Stopping pagination.")
+                    break
+                seen_page_urls.add(current_page_url)
+            else:
+                # Still record the seen URL but do not use it to stop pagination
+                if current_page_url not in seen_page_urls:
+                    seen_page_urls.add(current_page_url)
 
             # If Keells page, attempt to expand the list via "View All" on the first page
             if "keellssuper.com" in website.lower() and page_idx == 0:
@@ -674,19 +752,56 @@ def scrape_website(website, wait_seconds=45, slow_scroll=False, paginate=False, 
 
             if page_html and len(page_html.strip()) >= 200:
                 html_pages.append(page_html)
+                print(f"Page {page_idx + 1}: Successfully captured {len(page_html)} chars")
+
+                # For Keells, track content by signature of product list to detect duplicate pages
+                if "keellssuper.com" in website.lower():
+                    sig = _keells_content_signature()
+                    sig_hash = hash(sig)
+                    print(f"Keells signature length: {len(sig)} chars, hash: {sig_hash}")
+                    if sig_hash in seen_keells_pages:
+                        print(f"Keells: Same product-list signature detected. Pagination complete.")
+                        break
+                    seen_keells_pages.add(sig_hash)
 
             page_idx += 1
 
             if max_pages_to_scrape is not None and page_idx >= max_pages_to_scrape:
+                print(f"Reached max_pages_to_scrape limit: {max_pages_to_scrape}")
                 break
 
             if not paginate:
                 break
 
             before_url = driver.current_url
-            moved = _click_next_page(driver)
+            print(f"Page {page_idx}: Current URL: {before_url}")
+            
+            # Retry logic for pagination clicks
+            moved = False
+            retailer_hint = "keells" if "keellssuper.com" in website.lower() else ""
+            
+            for retry in range(2):  # Try up to 2 times
+                moved = _click_next_page(driver, retailer_hint)
+                if moved:
+                    print(f"Next page click successful (attempt {retry + 1})")
+                    break
+                else:
+                    if retry == 0:  # Only retry once
+                        print(f"Next page click failed, retrying after wait...")
+                        time.sleep(2.0)
+            
             if not moved:
-                break
+                consecutive_failed_clicks += 1
+                print(f"Failed to find next page button. Consecutive failures: {consecutive_failed_clicks}")
+                # For Keells, allow more failures before giving up
+                if "keellssuper.com" in website.lower():
+                    if consecutive_failed_clicks > max_failed_clicks:
+                        print("Too many consecutive failed clicks. Stopping pagination.")
+                        break
+                else:
+                    break
+            else:
+                consecutive_failed_clicks = 0  # Reset on successful click
 
             try:
                 WebDriverWait(driver, 20).until(
@@ -695,12 +810,18 @@ def scrape_website(website, wait_seconds=45, slow_scroll=False, paginate=False, 
             except TimeoutException:
                 pass
 
-            time.sleep(2.0)
+            time.sleep(2.5)  # Slightly longer wait for page to load
             after_url = driver.current_url
 
-            # Stop as soon as pagination stops advancing to a new URL.
-            if before_url == after_url or after_url in seen_page_urls:
-                break
+            print(f"After click URL: {after_url}")
+            
+            # For Keells, don't check URL since buttons don't change URL
+            # Instead rely on content hash and button detection
+            if "keellssuper.com" not in website.lower():
+                # Stop as soon as pagination stops advancing to a new URL (for non-Keells sites)
+                if before_url == after_url or after_url in seen_page_urls:
+                    print("URL hasn't changed. Pagination complete.")
+                    break
 
         html = "\n\n<!-- PAGE_SPLIT -->\n\n".join(html_pages)
         if not html or len(html.strip()) < 200:
