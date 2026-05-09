@@ -8,8 +8,8 @@ including typo tolerance and token similarity.
 
 import re
 from difflib import SequenceMatcher
-from typing import Optional
-from sqlalchemy.orm import Session
+from typing import Any, Optional
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import select, and_, or_, func
 from app.db.models import Product, Category, Price
 
@@ -152,8 +152,8 @@ def search_products_by_name(
         return []
 
     stmt = select(Product).options(
-        Product.category,
-        Product.prices,
+        selectinload(Product.category),
+        selectinload(Product.prices),
     )
     
     # Filter by category if provided
@@ -178,7 +178,7 @@ def search_products_by_name(
 
 
 def process_grocery_list(
-    items: list[dict],  # [{"name": "milk", "quantity": 1}, ...]
+    items: list[Any],  # [{"name": "milk", "quantity": 1}, ...] or Pydantic models
     db: Session,
     category_id: Optional[str] = None,
     candidates_per_item: int = 5,
@@ -198,10 +198,20 @@ def process_grocery_list(
         Processed list with matched products for each item
     """
     results = []
+
+    def _item_value(item: Any, key: str, default: Any = None) -> Any:
+        if isinstance(item, dict):
+            return item.get(key, default)
+
+        model_dump = getattr(item, "model_dump", None)
+        if callable(model_dump):
+            return model_dump().get(key, default)
+
+        return getattr(item, key, default)
     
     for item in items:
-        item_name = item.get("name", "").strip()
-        quantity = item.get("quantity", 1)
+        item_name = str(_item_value(item, "name", "") or "").strip()
+        quantity = int(_item_value(item, "quantity", 1) or 1)
         
         if not item_name:
             continue

@@ -3,10 +3,9 @@ import { createPortal } from 'react-dom'
 import { useAuth } from './context/AuthContext'
 import { LoginForm } from './components/LoginForm'
 import { RegisterForm } from './components/RegisterForm'
-import { SearchBar } from './components/SearchBar'
 import { AddGroceryItems } from './components/AddGroceryItems'
+import type { AddGroceryItemsHandle } from './components/AddGroceryItems'
 import { GroceryList } from './components/GroceryList'
-import { ComparisonRadar } from './components/ComparisonRadar'
 import { CheapestStoreResults } from './components/CheapestStoreResults'
 import { BudgetDashboard } from './components/BudgetDashboard'
 import { FindNearestStore } from './components/FindNearestStore'
@@ -76,7 +75,6 @@ function AuthScreen() {
 
 function Dashboard() {
   const { user, logout } = useAuth()
-  const [searchQuery, setSearchQuery] = useState('')
   const [basket, setBasket] = useState<BasketItem[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [isLoadingProducts, setIsLoadingProducts] = useState(true)
@@ -88,6 +86,7 @@ function Dashboard() {
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userButtonRef = useRef<HTMLButtonElement>(null)
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 })
+  const addGroceryItemsRef = useRef<AddGroceryItemsHandle>(null)
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -117,7 +116,7 @@ function Dashboard() {
       setProductLoadError(null)
 
       try {
-        const apiProducts = await api.products.getAll()
+        const apiProducts = await api.products.getAll(10)
         if (!active) return
         setProducts(apiProducts.map(mapApiProductToProduct))
       } catch (error) {
@@ -341,29 +340,23 @@ function Dashboard() {
         </>
       ) : (
         <>
-          <SearchBar value={searchQuery} onChange={setSearchQuery} />
-
           <main className="pb-6">
             {productLoadError && (
               <div className="mx-4 mt-4 rounded-xl border border-danger/20 bg-dangerLight px-4 py-3 text-sm text-danger">
                 {productLoadError}
               </div>
             )}
-            <ComparisonRadar
-              searchQuery={searchQuery}
-              products={products}
-              onAddToBasket={handleAddToList}
-            />
-            <AddGroceryItems products={products} onAddToBasket={handleAddToList} />
+            <AddGroceryItems ref={addGroceryItemsRef} products={products} onAddToBasket={handleAddToList} />
             
-            {/* View My List Button */}
             <div className="px-4 py-4">
               <button
                 type="button"
-                onClick={() => setView('grocery-list')}
-                className="w-full py-3 rounded-xl bg-primary-100 text-primary-700 font-semibold text-base hover:bg-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 flex items-center justify-center gap-2"
+                onClick={() => {
+                  void addGroceryItemsRef.current?.processPendingItems()
+                }}
+                className="w-full py-3 rounded-2xl bg-primary-600 text-white font-semibold text-base hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 flex items-center justify-center gap-2 shadow-sm"
               >
-                View My Grocery List ({basket.length} items)
+                Process list
               </button>
               {isLoadingProducts && !productLoadError && (
                 <p className="text-center text-xs text-grey-500 mt-2">

@@ -86,3 +86,9 @@ export interface ProcessListResult {
   bestMatch: ProductMatchCandidate | null
   alternatives: ProductMatchCandidate[]
 }
+
+export interface ProcessListResponse {
+  items: ProcessListResult[]
+  totalItems: number
+  processedAt: string
+}

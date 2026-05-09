@@ -1,5 +1,5 @@
 import type { ProcessListResult, ProductMatchCandidate } from '../types'
-import { ChevronDown, ChevronUp, Check, AlertCircle } from 'lucide-react'
+import { ChevronDown, ChevronUp, Check, AlertCircle, Sparkles } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
 interface ProcessedResultsProps {
@@ -27,16 +27,21 @@ export function ProcessedResults({ results, onSelectAlternative }: ProcessedResu
   if (results.length === 0) return null
 
   return (
-    <div className="mt-4 p-4 rounded-xl border border-secondary/30 bg-gradient-to-br from-secondary/5 to-primary/5 space-y-3">
-      <div className="flex items-center gap-2 mb-3">
-        <Check className="w-5 h-5 text-secondary font-bold" />
-        <h3 className="text-sm font-semibold text-grey-900">Processed Matches</h3>
-        <span className="text-xs bg-secondary/20 text-secondary px-2 py-1 rounded-full font-medium">
+    <div className="mt-4 rounded-3xl border border-grey-200 bg-white shadow-[0_16px_50px_-28px_rgba(15,23,42,0.3)] overflow-hidden">
+      <div className="px-4 py-3 border-b border-grey-100 bg-gradient-to-r from-secondary/8 to-primary/8 flex items-center gap-2">
+        <div className="h-9 w-9 rounded-2xl bg-secondary/10 text-secondary flex items-center justify-center">
+          <Sparkles className="w-4 h-4" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-semibold text-grey-900">Processed matches</h3>
+          <p className="text-xs text-grey-500">Tap any item to view alternatives</p>
+        </div>
+        <span className="text-xs bg-secondary/15 text-secondary px-2.5 py-1 rounded-full font-semibold">
           {results.length} items
         </span>
       </div>
 
-      <div className="space-y-2">
+      <div className="p-3 space-y-3">
         {results.map((result, idx) => {
           const itemName = result.inputName || result.userInput || ''
           const isExpanded = expandedItems.has(itemName)
@@ -45,93 +50,83 @@ export function ProcessedResults({ results, onSelectAlternative }: ProcessedResu
           return (
             <div
               key={`${itemName}-${idx}`}
-              className="rounded-lg border border-grey-200 bg-white overflow-hidden hover:shadow-md transition-shadow"
+              className="rounded-2xl border border-grey-200 bg-grey-50/40 overflow-hidden transition-all hover:border-primary-200 hover:shadow-sm"
             >
-              {/* Main Result Item */}
-              <div className="p-3">
+              <button
+                type="button"
+                onClick={() => hasAlternatives && toggleExpanded(itemName)}
+                disabled={!hasAlternatives}
+                className="w-full text-left p-3 disabled:cursor-default"
+              >
                 <div className="flex items-center gap-3">
-                  {/* Best Match Status Icon */}
                   <div className="flex-shrink-0">
                     {result.bestMatch ? (
-                      <div className="w-10 h-10 rounded-lg bg-secondary/10 flex items-center justify-center">
+                      <div className="h-11 w-11 rounded-2xl bg-secondary/10 flex items-center justify-center">
                         <Check className="w-5 h-5 text-secondary" />
                       </div>
                     ) : (
-                      <div className="w-10 h-10 rounded-lg bg-warning/10 flex items-center justify-center">
+                      <div className="h-11 w-11 rounded-2xl bg-warning/10 flex items-center justify-center">
                         <AlertCircle className="w-5 h-5 text-warning" />
                       </div>
                     )}
                   </div>
 
-                  {/* Item Info */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-grey-500 uppercase tracking-wide">
-                      {itemName}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-grey-500 truncate">
+                        {itemName}
+                      </p>
+                      <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-grey-500 border border-grey-200">
+                        Qty {result.quantity}
+                      </span>
+                    </div>
                     {result.bestMatch ? (
-                      <div>
-                        <p className="font-semibold text-grey-900 text-sm truncate">
+                      <>
+                        <p className="mt-0.5 text-sm font-semibold text-grey-900 truncate">
                           {result.bestMatch.product.name}
                         </p>
-                        <p className="text-xs text-grey-600 mt-0.5">
-                          Similarity:{' '}
+                        <p className="text-xs text-grey-600 mt-1">
+                          Best match{' '}
                           <span className="font-semibold text-secondary">
                             {(result.bestMatch.similarity * 100).toFixed(1)}%
                           </span>
                         </p>
-                      </div>
+                      </>
                     ) : (
-                      <p className="text-sm text-warning font-medium">No match found</p>
+                      <p className="mt-0.5 text-sm font-medium text-warning">No match found</p>
                     )}
                   </div>
 
-                  {/* Quantity Badge */}
-                  <div className="flex-shrink-0 text-right">
-                    <p className="text-xs text-grey-500">Qty:</p>
-                    <p className="text-lg font-bold text-grey-900">{result.quantity}</p>
-                  </div>
-
-                  {/* Expand Button */}
                   {hasAlternatives && (
-                    <button
-                      type="button"
-                      onClick={() => toggleExpanded(itemName)}
-                      className="flex-shrink-0 p-2 hover:bg-grey-100 rounded-lg transition-colors"
-                      aria-label="Toggle alternatives"
-                    >
-                      {isExpanded ? (
-                        <ChevronUp className="w-5 h-5 text-grey-500" />
-                      ) : (
-                        <ChevronDown className="w-5 h-5 text-grey-500" />
-                      )}
-                    </button>
+                    <div className="flex-shrink-0 text-grey-500">
+                      {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                    </div>
                   )}
                 </div>
 
-                {/* Price Info */}
                 {result.bestMatch && result.bestMatch.product.prices && (
-                  <div className="mt-2 pt-2 border-t border-grey-100">
-                    <p className="text-xs text-grey-600">
-                      Prices:{' '}
+                  <div className="mt-3 pt-3 border-t border-grey-200 flex items-center justify-between gap-2 text-xs text-grey-600">
+                    <span>Price range preview</span>
+                    <span className="font-medium">
                       {result.bestMatch.product.prices
                         .slice(0, 2)
                         .map((p) => `Rs. ${p.price}`)
                         .join(' - ')}
-                    </p>
+                    </span>
                   </div>
                 )}
-              </div>
+              </button>
 
               {/* Alternatives Section */}
               {isExpanded && hasAlternatives && (
-                <div className="border-t border-grey-200 bg-grey-50/50 p-3 space-y-2">
+                <div className="border-t border-grey-200 bg-white p-3 space-y-2">
                   <p className="text-xs font-semibold text-grey-700 uppercase tracking-wide">
                     Similar Products ({result.alternatives.length})
                   </p>
                   {result.alternatives.map((alt, altIdx) => (
                     <div
                       key={`${itemName}-alt-${altIdx}`}
-                      className="flex items-center gap-2 p-2 bg-white rounded-lg border border-grey-200 hover:border-primary-300 transition-colors"
+                      className="flex items-center gap-3 p-3 bg-grey-50 rounded-2xl border border-grey-200 hover:border-primary-300 transition-colors"
                     >
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-grey-900 truncate">

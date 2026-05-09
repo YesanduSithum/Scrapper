@@ -112,8 +112,8 @@ def _score_product_match(query: str, product: Product) -> float:
 
 
 @router.get("")
-def get_all_products(db: Session = Depends(get_db)):
-    products = db.scalars(_product_base_query().order_by(Product.name.asc())).all()
+def get_all_products(limit: int = Query(default=10, ge=1, le=1000), db: Session = Depends(get_db)):
+    products = db.scalars(_product_base_query().order_by(Product.name.asc()).limit(limit)).all()
     return success_response([serialize_product(product) for product in products])
 
 
@@ -221,14 +221,30 @@ def process_grocery_list(payload: ProcessListRequest, db: Session = Depends(get_
         best_match = result.get("bestMatch")
         candidates = result.get("candidates", [])
         alternatives = candidates[1:] if len(candidates) > 1 else []
+
+        def _to_product_candidate(candidate: dict | None):
+            if not candidate:
+                return None
+
+            return {
+                "similarity": candidate.get("similarity", 0),
+                "product": {
+                    "id": candidate.get("id"),
+                    "name": candidate.get("name"),
+                    "nameSinhala": candidate.get("nameSinhala"),
+                    "image": candidate.get("image"),
+                    "categoryId": candidate.get("categoryId"),
+                    "prices": candidate.get("prices", []),
+                },
+            }
         
         processed_items.append(
             {
                 "inputName": result["userInput"],
                 "userInput": result["userInput"],
                 "quantity": result["quantity"],
-                "bestMatch": best_match,
-                "alternatives": alternatives,
+                "bestMatch": _to_product_candidate(best_match),
+                "alternatives": [_to_product_candidate(candidate) for candidate in alternatives],
             }
         )
     

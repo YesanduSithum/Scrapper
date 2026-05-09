@@ -1,6 +1,6 @@
-import type { ApiProduct, ProcessListRequestItem, ProcessListResult } from '../types'
+import type { ApiProduct, ProcessListRequestItem, ProcessListResponse } from '../types'
 
-const API_BASE_URL = 'http://localhost:5000/api'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
 const TOKEN_KEY = 'pricepulse_token'
 
 async function requestJson<T>(url: string, options: RequestInit = {}): Promise<T> {
@@ -73,8 +73,8 @@ export const api = {
 
   // Products endpoints
   products: {
-    getAll: async () => {
-      return requestJson<ApiProduct[]>(`${API_BASE_URL}/products`)
+    getAll: async (limit: number = 10) => {
+      return requestJson<ApiProduct[]>(`${API_BASE_URL}/products?limit=${limit}`)
     },
 
     search: async (query: string) => {
@@ -86,7 +86,7 @@ export const api = {
     },
 
     processList: async (items: ProcessListRequestItem[], candidateLimit: number = 5) => {
-      return requestJson<ProcessListResult[]>(`${API_BASE_URL}/products/process-list`, {
+      return requestJson<ProcessListResponse>(`${API_BASE_URL}/products/process-list`, {
         method: 'POST',
         body: JSON.stringify({ items, candidateLimit }),
       })

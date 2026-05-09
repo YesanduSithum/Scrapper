@@ -25,11 +25,7 @@ def _scrape_with_retailer_options(retailer_label: str, url: str):
 RETAILER_URLS = {
     "Retailer 1": [
         "https://cargillsonline.com/Product/Dairy?IC=Ng==&NC=RGFpcnk=",
-        "https://cargillsonline.com/Product/Baby-Products?IC=Mg==&NC=QmFieSBQcm9kdWN0cw==",
-        "https://cargillsonline.com/Product/Beverages?IC=Mw==&NC=QmV2ZXJhZ2Vz",
-        "https://cargillsonline.com/Product/Food-Cupboard?IC=Nw==&NC=Rm9vZCBDdXBib2FyZA==",
-        "https://cargillsonline.com/Product/Household?IC=MTA=&NC=SG91c2Vob2xk",
-        "https://cargillsonline.com/Product/Tea-And-Coffee?IC=MjE=&NC=VGVhICYgQ29mZmVl",
+      
      
     ],
     "Retailer 2": [
