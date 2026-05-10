@@ -1,16 +1,13 @@
 import { forwardRef, useImperativeHandle, useState } from 'react'
 import { PlusCircle, Sparkles, Trash2 } from 'lucide-react'
-import type { Product, ProcessListResult, ProductMatchCandidate } from '../types'
+import type { Product, ProcessListResult } from '../types'
 import { api } from '../services/api'
 import { mapApiProductToProduct } from '../services/productMapper'
-import { ProcessedResults } from './ProcessedResults'
 
 interface AddGroceryItemsProps {
   products: Product[]
   onAddToBasket: (product: Product, quantity: number) => void
-  onRemoveFromBasket?: (productId: string) => void
-  onReplaceBasketItem?: (originalProductId: string, product: Product, quantity: number) => void
-  onConfirmProcessed?: () => void
+  onProcessedResultsChange?: (results: ProcessListResult[]) => void
 }
 
 export interface AddGroceryItemsHandle {
@@ -18,15 +15,13 @@ export interface AddGroceryItemsHandle {
 }
 
 export const AddGroceryItems = forwardRef<AddGroceryItemsHandle, AddGroceryItemsProps>(function AddGroceryItems(
-  { products: _products, onAddToBasket, onRemoveFromBasket, onReplaceBasketItem, onConfirmProcessed },
+  { products: _products, onAddToBasket, onProcessedResultsChange },
   ref
 ) {
   const [customInput, setCustomInput] = useState('')
   const [pendingItems, setPendingItems] = useState<{ name: string; quantity: number }[]>([])
   const [isProcessingItems, setIsProcessingItems] = useState(false)
   const [processError, setProcessError] = useState<string | null>(null)
-  const [processedResults, setProcessedResults] = useState<ProcessListResult[]>([])
-  const [selectionAlert, setSelectionAlert] = useState<string | null>(null)
 
   const parseItem = (raw: string) => {
     const trimmed = raw.trim()
@@ -75,9 +70,9 @@ export const AddGroceryItems = forwardRef<AddGroceryItemsHandle, AddGroceryItems
       )
 
       console.log('Process results:', response)
-      setProcessedResults(response.items)
+      onProcessedResultsChange?.(response.items)
 
-      // record mapping of result -> original product id and add best matches to basket
+      // add best matches to basket
       response.items.forEach((result) => {
         if (!result.bestMatch) return
         const mappedProduct = mapApiProductToProduct(result.bestMatch.product)
@@ -92,59 +87,6 @@ export const AddGroceryItems = forwardRef<AddGroceryItemsHandle, AddGroceryItems
     } finally {
       setIsProcessingItems(false)
     }
-  }
-
-  const handleSelectAlternative = (candidate: ProductMatchCandidate, quantity: number, result?: ProcessListResult) => {
-    const mappedProduct = mapApiProductToProduct(candidate.product)
-    const originalProductId = result?.bestMatch?.product.id
-    console.log('[AddGroceryItems] select alternative', { selectedId: mappedProduct.id, originalProductId, quantity })
-    if (originalProductId && typeof onReplaceBasketItem === 'function') {
-      console.log('[AddGroceryItems] calling onReplaceBasketItem with', originalProductId)
-      onReplaceBasketItem(originalProductId, mappedProduct, quantity)
-    } else {
-      // fallback for older wiring: remove then add
-      if (originalProductId && typeof onRemoveFromBasket === 'function') {
-        console.log('[AddGroceryItems] calling onRemoveFromBasket with', originalProductId)
-        onRemoveFromBasket(originalProductId)
-      }
-      onAddToBasket(mappedProduct, quantity)
-    }
-
-    if (result) {
-      const previousBestMatch = result.bestMatch
-      const selectedCandidate: ProductMatchCandidate = {
-        similarity: candidate.similarity,
-        product: candidate.product,
-      }
-      setProcessedResults((prev) =>
-        prev.map((item) => {
-          if (item.inputName === result.inputName && item.quantity === result.quantity) {
-            const nextAlternatives = [...item.alternatives]
-
-            if (previousBestMatch) {
-              nextAlternatives.unshift(previousBestMatch)
-            }
-
-            const dedupedAlternatives = nextAlternatives.filter(
-              (alt, altIndex, altList) =>
-                alt.product.id !== candidate.product.id &&
-                altList.findIndex((entry) => entry.product.id === alt.product.id) === altIndex
-            )
-
-            return {
-              ...item,
-              bestMatch: selectedCandidate,
-              alternatives: dedupedAlternatives,
-            }
-          }
-          return item
-        })
-      )
-    }
-
-    // show temporary toast so user can see replacement happened
-    setSelectionAlert(`Replaced ${originalProductId ?? 'unknown'} → ${mappedProduct.id}`)
-    window.setTimeout(() => setSelectionAlert(null), 3000)
   }
 
   useImperativeHandle(ref, () => ({
@@ -245,30 +187,8 @@ export const AddGroceryItems = forwardRef<AddGroceryItemsHandle, AddGroceryItems
           </button>
 
           {processError && <p className="text-sm text-danger">{processError}</p>}
-
-          {processedResults.length > 0 && (
-            <>
-              <ProcessedResults results={processedResults} onSelectAlternative={handleSelectAlternative} />
-              <div className="mt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (typeof onConfirmProcessed === 'function') onConfirmProcessed()
-                  }}
-                  className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-primary-600 px-4 py-3.5 text-sm font-semibold text-white shadow-sm transition-colors hover:opacity-95"
-                >
-                  Confirm item list
-                </button>
-              </div>
-            </>
-          )}
         </div>
       </div>
-      {selectionAlert && (
-        <div className="fixed bottom-24 right-4 z-50 bg-primary-600 text-white px-4 py-2 rounded-lg shadow">
-          {selectionAlert}
-        </div>
-      )}
     </section>
   )
 })

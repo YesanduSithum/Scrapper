@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { MapPin } from 'lucide-react'
-import { RETAILER_LABELS, RETAILER_MAP_QUERIES } from '../data/mockProducts'
+import { RETAILER_LABELS, RETAILER_MAP_QUERIES } from '../constants/retailers'
 import type { Retailer } from '../types'
 
 export function FindNearestStore({

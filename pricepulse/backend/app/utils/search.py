@@ -153,7 +153,7 @@ def search_products_by_name(
 
     stmt = select(Product).options(
         selectinload(Product.category),
-        selectinload(Product.prices),
+        selectinload(Product.prices).selectinload(Price.retailer),
     )
     
     # Filter by category if provided
@@ -166,14 +166,16 @@ def search_products_by_name(
     for product in products:
         category_label = product.category.label if product.category else ""
         score = calculate_similarity_score(query, product, category_label)
+        has_live_prices = any((price.price or 0) > 0 for price in product.prices)
         
         if score >= min_score:
             scored_products.append({
                 "product": product,
                 "score": score,
+                "hasLivePrices": has_live_prices,
             })
     
-    scored_products.sort(key=lambda x: x["score"], reverse=True)
+    scored_products.sort(key=lambda x: (x["hasLivePrices"], x["score"]), reverse=True)
     return scored_products[:limit]
 
 

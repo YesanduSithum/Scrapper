@@ -10,8 +10,13 @@ import {
   Pie,
   Cell,
   Legend,
+  LineChart,
+  Line,
+  CartesianGrid,
 } from 'recharts'
 import { api } from '../services/api'
+import { RETAILER_LABELS } from '../constants/retailers'
+import type { Retailer } from '../types'
 
 type SummaryEntry = {
   name: string
@@ -27,9 +32,118 @@ type PurchaseSummary = {
   byRetailer: SummaryEntry[]
 }
 
+type HistoryEntry = {
+  month: string
+  spent: number
+  purchaseCount: number
+}
+
+type ConfirmedPurchaseItem = {
+  productId: string
+  name: string
+  category: string
+  quantity: number
+  unitPrice: number
+}
+
+type ConfirmedPurchaseRecord = {
+  id: string
+  confirmedAt: string
+  estimatedStore: Retailer | null
+  estimatedStoreLabel: string
+  estimatedTotal: number
+  itemCount: number
+  items: ConfirmedPurchaseItem[]
+}
+
 const CHART_COLORS = ['#059669', '#10b981', '#34d399', '#6ee7b7', '#047857', '#065f46']
 
 const MONTHLY_LIMIT_STORAGE_KEY = 'pricepulse-monthly-limit'
+const CONFIRMED_PURCHASES_STORAGE_KEY = 'pricepulse-confirmed-purchases'
+
+function getMonthKey(isoDate: string) {
+  return isoDate.slice(0, 7)
+}
+
+function readConfirmedPurchases(): ConfirmedPurchaseRecord[] {
+  try {
+    const raw = localStorage.getItem(CONFIRMED_PURCHASES_STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as ConfirmedPurchaseRecord[]
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function combineHistory(baseHistory: HistoryEntry[], purchases: ConfirmedPurchaseRecord[]) {
+  const historyMap = new Map<string, HistoryEntry>()
+
+  baseHistory.forEach((entry) => {
+    historyMap.set(entry.month, { ...entry })
+  })
+
+  purchases.forEach((purchase) => {
+    const month = getMonthKey(purchase.confirmedAt)
+    const existing = historyMap.get(month) ?? { month, spent: 0, purchaseCount: 0 }
+    historyMap.set(month, {
+      month,
+      spent: Number((existing.spent + purchase.estimatedTotal).toFixed(2)),
+      purchaseCount: existing.purchaseCount + 1,
+    })
+  })
+
+  return Array.from(historyMap.values()).sort((a, b) => a.month.localeCompare(b.month))
+}
+
+function combineSummary(
+  baseSummary: PurchaseSummary | null,
+  purchases: ConfirmedPurchaseRecord[],
+  currentMonth: string
+) {
+  const currentMonthPurchases = purchases.filter((purchase) => getMonthKey(purchase.confirmedAt) === currentMonth)
+  if (currentMonthPurchases.length === 0) return baseSummary
+
+  const categoryTotals = new Map<string, number>()
+  const retailerTotals = new Map<string, number>()
+  let spent = currentMonthPurchases.reduce((total, purchase) => total + purchase.estimatedTotal, 0)
+  let purchaseCount = currentMonthPurchases.length
+  let itemCount = currentMonthPurchases.reduce((total, purchase) => total + purchase.itemCount, 0)
+
+  currentMonthPurchases.forEach((purchase) => {
+    purchase.items.forEach((item) => {
+      const lineTotal = item.unitPrice * item.quantity
+      categoryTotals.set(item.category, (categoryTotals.get(item.category) ?? 0) + lineTotal)
+    })
+
+    const retailerName = purchase.estimatedStore ? RETAILER_LABELS[purchase.estimatedStore] : purchase.estimatedStoreLabel
+    retailerTotals.set(retailerName, (retailerTotals.get(retailerName) ?? 0) + purchase.estimatedTotal)
+  })
+
+  const confirmedSummary: PurchaseSummary = {
+    month: currentMonth,
+    spent: Number(spent.toFixed(2)),
+    purchaseCount,
+    itemCount,
+    byCategory: Array.from(categoryTotals.entries())
+      .map(([name, value]) => ({ name, value: Number(value.toFixed(2)) }))
+      .sort((a, b) => b.value - a.value),
+    byRetailer: Array.from(retailerTotals.entries())
+      .map(([name, value]) => ({ name, value: Number(value.toFixed(2)) }))
+      .sort((a, b) => b.value - a.value),
+  }
+
+  if (!baseSummary) return confirmedSummary
+
+  return {
+    ...baseSummary,
+    spent: Number((baseSummary.spent + confirmedSummary.spent).toFixed(2)),
+    purchaseCount: baseSummary.purchaseCount + confirmedSummary.purchaseCount,
+    itemCount: baseSummary.itemCount + confirmedSummary.itemCount,
+    byCategory: [...baseSummary.byCategory, ...confirmedSummary.byCategory],
+    byRetailer: [...baseSummary.byRetailer, ...confirmedSummary.byRetailer],
+  }
+}
 
 export function BudgetDashboard() {
   const [monthlyLimit, setMonthlyLimit] = useState(() => {
@@ -38,8 +152,10 @@ export function BudgetDashboard() {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 25000
   })
   const [summary, setSummary] = useState<PurchaseSummary | null>(null)
+  const [history, setHistory] = useState<HistoryEntry[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [confirmedPurchases] = useState<ConfirmedPurchaseRecord[]>(() => readConfirmedPurchases())
 
   useEffect(() => {
     localStorage.setItem(MONTHLY_LIMIT_STORAGE_KEY, String(monthlyLimit || 0))
@@ -52,12 +168,19 @@ export function BudgetDashboard() {
       setIsLoading(true)
       setError(null)
       try {
-        const response = (await api.purchases.summary()) as PurchaseSummary
+        const [summaryResponse, historyResponse] = await Promise.all([
+          api.purchases.summary() as Promise<PurchaseSummary>,
+          api.purchases.history(12) as Promise<HistoryEntry[]>,
+        ])
         if (!mounted) return
-        setSummary(response)
+        const now = new Date()
+        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+        setSummary(combineSummary(summaryResponse, confirmedPurchases, currentMonth))
+        setHistory(combineHistory(historyResponse, confirmedPurchases))
       } catch {
         if (!mounted) return
         setSummary(null)
+        setHistory([])
         setError('Could not load budget insights right now.')
       } finally {
         if (mounted) setIsLoading(false)
@@ -68,7 +191,7 @@ export function BudgetDashboard() {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [confirmedPurchases])
 
   const { categoryData, retailerData, spent, purchaseCount, itemCount } = useMemo(() => {
     const categoryData = (summary?.byCategory ?? []).map((entry, index) => ({
@@ -138,6 +261,36 @@ export function BudgetDashboard() {
         )}
         {isOverBudget && (
           <p className="text-xs text-danger mt-1">Over budget — consider reducing spend</p>
+        )}
+      </div>
+
+      <div className="mb-6">
+        <h3 className="text-sm font-medium text-grey-700 mb-2">Inflation chart (12-month trend)</h3>
+        <p className="text-xs text-grey-500 mb-3">Your monthly spending pattern</p>
+        {history.length > 0 ? (
+          <div className="h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={history} margin={{ left: 0, right: 8, top: 5, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                <YAxis tickFormatter={(v) => `Rs.${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 12 }} />
+                <Tooltip
+                  formatter={(v) => (v != null ? [`Rs. ${Number(v).toLocaleString()}`, 'Spent'] : null)}
+                  labelFormatter={(label) => `Month: ${label}`}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="spent"
+                  stroke="#059669"
+                  strokeWidth={2}
+                  dot={{ fill: '#059669', r: 4 }}
+                  activeDot={{ r: 6 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <p className="text-sm text-grey-500">No spending history yet</p>
         )}
       </div>
 

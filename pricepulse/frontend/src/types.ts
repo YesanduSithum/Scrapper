@@ -1,4 +1,4 @@
-export type Retailer = 'cargills' | 'keells' | 'sathosa'
+export type Retailer = 'cargills' | 'keells' | 'spar2u' | 'glowmark'
 
 export interface User {
   id: string
@@ -9,7 +9,34 @@ export interface User {
 export interface PriceByStore {
   cargills: number
   keells: number
-  sathosa: number
+  spar2u?: number
+  glowmark?: number
+  [key: string]: number | undefined
+}
+
+export interface RetailerAvailability {
+  retailer: Retailer
+  available: boolean
+  price?: number
+}
+
+export type ComparisonFilter = 'availability' | 'detailed'
+
+export interface ProductComparison {
+  productId: string
+  name: string
+  quantity: number
+  availability: RetailerAvailability[]
+  cheapestRetailer?: Retailer
+}
+
+export interface StoreComparison {
+  retailer: Retailer
+  totalPrice: number
+  availableProductCount: number
+  unavailableProducts: string[]
+  isComplete: boolean
+  products: ProductComparison[]
 }
 
 export interface Product {

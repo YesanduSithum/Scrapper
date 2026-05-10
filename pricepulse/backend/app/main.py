@@ -63,7 +63,7 @@ def check_database_connection():
     db = SessionLocal()
     try:
         db.execute(text("SELECT 1"))
-        print("✅ Database connected successfully")
+        print("[SUCCESS] Database connected successfully")
     finally:
         db.close()
 

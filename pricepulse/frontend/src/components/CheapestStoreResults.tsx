@@ -1,5 +1,5 @@
 import type { BasketItem, Retailer } from '../types'
-import { RETAILER_LABELS, RETAILER_MAP_QUERIES } from '../data/mockProducts'
+import { AVAILABLE_RETAILERS, RETAILER_LABELS, RETAILER_MAP_QUERIES } from '../constants/retailers'
 import { MapPin, ChevronDown } from 'lucide-react'
 
 function openNearestStoreMap(store: Retailer) {
@@ -7,20 +7,20 @@ function openNearestStoreMap(store: Retailer) {
   window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, '_blank')
 }
 
-const STORES: Retailer[] = ['cargills', 'keells', 'sathosa']
+const STORES: Retailer[] = AVAILABLE_RETAILERS
 
 function getStoreTotals(items: BasketItem[]) {
   return STORES.map((store) => ({
     store,
     total: items.reduce(
-      (sum, { product, quantity }) => sum + product.prices[store] * quantity,
+      (sum, { product, quantity }) => sum + (product.prices[store] ?? 0) * quantity,
       0
     ),
     breakdown: items.map(({ product, quantity }) => ({
       name: product.name,
       quantity,
-      unitPrice: product.prices[store],
-      lineTotal: product.prices[store] * quantity,
+      unitPrice: product.prices[store] ?? 0,
+      lineTotal: (product.prices[store] ?? 0) * quantity,
     })),
   }))
 }

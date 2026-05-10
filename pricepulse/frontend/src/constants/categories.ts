@@ -1,0 +1,16 @@
+export const CATEGORIES = [
+  { id: 'dairy', name: 'Dairy', label: '🥛 Dairy' },
+  { id: 'vegetables', name: 'Vegetables', label: '🥕 Vegetables' },
+  { id: 'fruits', name: 'Fruits', label: '🍎 Fruits' },
+  { id: 'meat', name: 'Meat & Seafood', label: '🍗 Meat & Seafood' },
+  { id: 'beverages', name: 'Beverages', label: '🧃 Beverages' },
+  { id: 'snacks', name: 'Snacks', label: '🍿 Snacks' },
+  { id: 'bakery', name: 'Bakery', label: '🍞 Bakery' },
+  { id: 'grains', name: 'Grains', label: '🌾 Grains' },
+  { id: 'condiments', name: 'Condiments', label: '🧂 Condiments' },
+  { id: 'frozen', name: 'Frozen', label: '❄️ Frozen' },
+  { id: 'spices', name: 'Spices', label: '🌶️ Spices' },
+  { id: 'canned', name: 'Canned Goods', label: '🥫 Canned Goods' },
+  { id: 'household', name: 'Household', label: '🧹 Household' },
+  { id: 'personal', name: 'Personal Care', label: '🧴 Personal Care' },
+]

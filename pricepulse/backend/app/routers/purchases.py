@@ -213,3 +213,50 @@ def get_purchase_summary(
             "byRetailer": by_retailer,
         }
     )
+
+
+@router.get("/history")
+def get_purchase_history(
+    months: int = 12,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get spending history for the last N months"""
+    now = datetime.utcnow()
+    current_date = datetime(now.year, now.month, 1)
+
+    history = []
+
+    for i in range(months):
+        if i > 0:
+            if current_date.month == 1:
+                current_date = datetime(current_date.year - 1, 12, 1)
+            else:
+                current_date = datetime(current_date.year, current_date.month - 1, 1)
+
+        start = current_date
+        if start.month == 12:
+            end = datetime(start.year + 1, 1, 1)
+        else:
+            end = datetime(start.year, start.month + 1, 1)
+
+        purchases = db.scalars(
+            select(Purchase)
+            .where(Purchase.userId == current_user.id, Purchase.purchasedAt >= start, Purchase.purchasedAt < end)
+            .options(
+                selectinload(Purchase.items)
+            )
+        ).all()
+
+        month_str = start.strftime("%Y-%m")
+        total_spent = round(sum(float(p.total) for p in purchases), 2)
+
+        history.append(
+            {
+                "month": month_str,
+                "spent": total_spent,
+                "purchaseCount": len(purchases),
+            }
+        )
+
+    return success_response(sorted(history, key=lambda x: x["month"]))

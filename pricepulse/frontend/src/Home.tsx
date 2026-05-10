@@ -5,25 +5,69 @@ import { LoginForm } from './components/LoginForm'
 import { RegisterForm } from './components/RegisterForm'
 import { AddGroceryItems } from './components/AddGroceryItems'
 import type { AddGroceryItemsHandle } from './components/AddGroceryItems'
+import { ProcessedResults } from './components/ProcessedResults'
 import { GroceryList } from './components/GroceryList'
-import { CheapestStoreResults } from './components/CheapestStoreResults'
+import { ComparisonPage } from './components/ComparisonPage'
 import { BudgetDashboard } from './components/BudgetDashboard'
 import { FindNearestStore } from './components/FindNearestStore'
 import { api } from './services/api'
 import { mapApiProductToProduct } from './services/productMapper'
-import { RETAILER_LABELS } from './data/mockProducts'
-import type { BasketItem, Product, Retailer } from './types'
+import { AVAILABLE_RETAILERS, RETAILER_LABELS } from './constants/retailers'
+import type { BasketItem, ProcessListResult, Product, ProductMatchCandidate, Retailer } from './types'
 import { LogOut } from 'lucide-react'
 
-const STORES: Retailer[] = ['cargills', 'keells', 'sathosa']
+const STORES: Retailer[] = AVAILABLE_RETAILERS
+const CONFIRMED_PURCHASES_STORAGE_KEY = 'pricepulse-confirmed-purchases'
+
+type ConfirmedPurchaseItem = {
+  productId: string
+  name: string
+  category: string
+  quantity: number
+  unitPrice: number
+}
+
+type ConfirmedPurchaseRecord = {
+  id: string
+  confirmedAt: string
+  estimatedStore: Retailer | null
+  estimatedStoreLabel: string
+  estimatedTotal: number
+  itemCount: number
+  items: ConfirmedPurchaseItem[]
+}
 
 function getCheapestStoreForBasket(items: BasketItem[]): Retailer | null {
   if (items.length === 0) return null
   const totals = STORES.map((store) => ({
     store,
-    total: items.reduce((s, { product, quantity }) => s + product.prices[store] * quantity, 0),
+    total: items.reduce((s, { product, quantity }) => s + (product.prices[store] ?? 0) * quantity, 0),
   }))
   return totals.reduce((a, b) => (a.total <= b.total ? a : b)).store
+}
+
+function trackConfirmedPurchase(items: BasketItem[], store: Retailer | null) {
+  const record: ConfirmedPurchaseRecord = {
+    id: crypto.randomUUID(),
+    confirmedAt: new Date().toISOString(),
+    estimatedStore: store,
+    estimatedStoreLabel: store ? RETAILER_LABELS[store] : 'Confirmed list',
+    estimatedTotal: items.reduce((total, { product, quantity }) => {
+      const storePrice = store ? (product.prices[store] ?? 0) : 0
+      return total + storePrice * quantity
+    }, 0),
+    itemCount: items.reduce((count, { quantity }) => count + quantity, 0),
+    items: items.map(({ product, quantity }) => ({
+      productId: product.id,
+      name: product.name,
+      category: product.category,
+      quantity,
+      unitPrice: store ? (product.prices[store] ?? 0) : 0,
+    })),
+  }
+
+  const existing = JSON.parse(localStorage.getItem(CONFIRMED_PURCHASES_STORAGE_KEY) || '[]') as ConfirmedPurchaseRecord[]
+  localStorage.setItem(CONFIRMED_PURCHASES_STORAGE_KEY, JSON.stringify([...existing, record]))
 }
 
 function AuthScreen() {
@@ -79,10 +123,10 @@ function Dashboard() {
   const [products, setProducts] = useState<Product[]>([])
   const [isLoadingProducts, setIsLoadingProducts] = useState(true)
   const [productLoadError, setProductLoadError] = useState<string | null>(null)
-  const [view, setView] = useState<'home' | 'grocery-list' | 'budget' | 'results'>('home')
-  const [selectedMapStore, setSelectedMapStore] = useState<Retailer | null>(null)
-  const [purchaseError, setPurchaseError] = useState<string | null>(null)
+  const [view, setView] = useState<'home' | 'processed-matches' | 'grocery-list' | 'comparison' | 'budget'>('home')
+  const [processedResults, setProcessedResults] = useState<ProcessListResult[]>([])
   const [isSavingPurchase, setIsSavingPurchase] = useState(false)
+  const [selectionAlert, setSelectionAlert] = useState<string | null>(null)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userButtonRef = useRef<HTMLButtonElement>(null)
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 })
@@ -194,34 +238,96 @@ function Dashboard() {
     })
   }
 
+  const handleProcessedResultsChange = (results: ProcessListResult[]) => {
+    setProcessedResults(results)
+    setView('processed-matches')
+  }
+
+  const handleSelectAlternative = (candidate: ProductMatchCandidate, quantity: number, result?: ProcessListResult) => {
+    const mappedProduct = mapApiProductToProduct(candidate.product)
+    const originalProductId = result?.bestMatch?.product.id
+
+    if (originalProductId) {
+      handleReplaceBasketItem(originalProductId, mappedProduct, quantity)
+    } else {
+      handleAddToList(mappedProduct, quantity)
+    }
+
+    if (result) {
+      const previousBestMatch = result.bestMatch
+      const selectedCandidate: ProductMatchCandidate = {
+        similarity: candidate.similarity,
+        product: candidate.product,
+      }
+
+      setProcessedResults((prev) =>
+        prev.map((item) => {
+          if (item.inputName === result.inputName && item.quantity === result.quantity) {
+            const nextAlternatives = [...item.alternatives]
+
+            if (previousBestMatch) {
+              nextAlternatives.unshift(previousBestMatch)
+            }
+
+            const dedupedAlternatives = nextAlternatives.filter(
+              (alt, altIndex, altList) =>
+                alt.product.id !== candidate.product.id &&
+                altList.findIndex((entry) => entry.product.id === alt.product.id) === altIndex
+            )
+
+            return {
+              ...item,
+              bestMatch: selectedCandidate,
+              alternatives: dedupedAlternatives,
+            }
+          }
+          return item
+        })
+      )
+    }
+
+    setSelectionAlert(`Replaced ${originalProductId ?? 'unknown'} → ${mappedProduct.id}`)
+    window.setTimeout(() => setSelectionAlert(null), 3000)
+  }
+
   const handleFindCheapestStore = () => {
     if (basket.length === 0) return
-    setPurchaseError(null)
-    setSelectedMapStore(null)
-    setView('results')
+    trackConfirmedPurchase(basket, cheapestStore)
+    setSelectionAlert('✓ Item list confirmed and tracked')
+    setTimeout(() => setSelectionAlert(null), 3000)
+    setView('comparison')
   }
 
   const handleRecordPurchase = async (store: Retailer) => {
     if (basket.length === 0 || isSavingPurchase) return
 
     setIsSavingPurchase(true)
-    setPurchaseError(null)
     try {
       await api.purchases.record(
         RETAILER_LABELS[store],
-        basket.map(({ product, quantity }) => ({
-          productId: product.id,
-          name: product.name,
-          nameSinhala: product.nameSinhala,
-          image: product.image,
-          category: product.category,
-          quantity,
-          unitPrice: product.prices[store],
-        }))
+        basket.map(({ product, quantity }) => {
+          const storePrice = product.prices[store] ?? 0
+          return {
+            productId: product.id,
+            name: product.name,
+            nameSinhala: product.nameSinhala,
+            image: product.image,
+            category: product.category,
+            quantity,
+            unitPrice: storePrice,
+          }
+        })
       )
-      setSelectedMapStore(store)
+      // Success: clear basket and navigate to budget view
+      setBasket([])
+      setView('budget')
+      setSelectionAlert(`✓ Purchase recorded at ${RETAILER_LABELS[store]}!`)
+      // Clear alert after 3 seconds
+      setTimeout(() => setSelectionAlert(null), 3000)
     } catch (err) {
-      setPurchaseError(err instanceof Error ? err.message : 'Could not save purchase right now.')
+      console.error('Failed to record purchase:', err)
+      setSelectionAlert('Failed to record purchase. Please try again.')
+      setTimeout(() => setSelectionAlert(null), 3000)
     } finally {
       setIsSavingPurchase(false)
     }
@@ -235,7 +341,7 @@ function Dashboard() {
             <img src="/Applogo/My Logo.png" alt="My Logo" style={{ width: 42, height: 42 }} className="object-contain" />
           </div>
           <p className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-sm text-grey-500 text-center whitespace-nowrap">
-            Hi, {user?.name ?? 'User'} ·I'm your Grocery price comparison Assistant
+            Hi, {user?.name ?? 'User'} 
           </p>
           <div>
             <button
@@ -295,27 +401,31 @@ function Dashboard() {
           document.body
         )}
 
-      {view === 'results' ? (
+      {view === 'comparison' ? (
+        <ComparisonPage
+          items={basket}
+          onBack={() => setView('home')}
+          onSelectStore={handleRecordPurchase}
+          isProcessing={isSavingPurchase}
+        />
+      ) : view === 'processed-matches' ? (
         <>
-          {purchaseError && (
-            <div className="mx-4 mt-4 rounded-xl border border-danger/20 bg-dangerLight px-4 py-3 text-sm text-danger">
-              {purchaseError}
+          <div className="px-4 pt-4 pb-2">
+            <ProcessedResults results={processedResults} onSelectAlternative={handleSelectAlternative} />
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={handleFindCheapestStore}
+                disabled={basket.length === 0}
+                className="w-full py-3 rounded-2xl bg-primary-600 text-white font-semibold text-base hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary-600"
+              >
+                Confirm item list
+              </button>
             </div>
-          )}
-          {selectedMapStore && !purchaseError && (
-            <div className="mx-4 mt-4 rounded-xl border border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-700">
-              Purchase saved for budget tracking. Google Map opened below for the nearest {RETAILER_LABELS[selectedMapStore]} branch.
-            </div>
-          )}
-          <CheapestStoreResults
-            items={basket}
-            onBack={() => setView('home')}
-            onFindNearestStore={handleRecordPurchase}
-            isProcessing={isSavingPurchase}
-          />
-          {selectedMapStore && (
-            <div className="px-4 pb-6">
-              <FindNearestStore cheapestStore={selectedMapStore} defaultOpen />
+          </div>
+          {selectionAlert && (
+            <div className="fixed bottom-24 right-4 z-50 bg-primary-600 text-white px-4 py-2 rounded-lg shadow">
+              {selectionAlert}
             </div>
           )}
         </>
@@ -382,9 +492,7 @@ function Dashboard() {
               ref={addGroceryItemsRef}
               products={products}
               onAddToBasket={handleAddToList}
-              onRemoveFromBasket={handleRemove}
-              onReplaceBasketItem={handleReplaceBasketItem}
-              onConfirmProcessed={handleFindCheapestStore}
+              onProcessedResultsChange={handleProcessedResultsChange}
             />
             
             <div className="px-4 py-4">

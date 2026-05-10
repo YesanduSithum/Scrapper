@@ -30,7 +30,9 @@ export function GroceryList({
           >
             <div className="flex-1 min-w-0">
               <p className="font-medium text-grey-900 truncate">{product.name}</p>
-              <p className="text-xs text-grey-500">Rs. {product.prices.cargills} – Rs. {Math.max(...Object.values(product.prices))} per unit</p>
+              <p className="text-xs text-grey-500">
+                Rs. {product.prices.cargills ?? 0} – Rs. {Math.max(...Object.values(product.prices).filter((p): p is number => p != null))} per unit
+              </p>
             </div>
             <div className="flex items-center gap-1">
               <button

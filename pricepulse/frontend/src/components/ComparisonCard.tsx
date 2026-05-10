@@ -1,8 +1,8 @@
 import type { Product, Retailer } from '../types'
-import { RETAILER_LABELS } from '../data/mockProducts'
+import { AVAILABLE_RETAILERS, RETAILER_LABELS } from '../constants/retailers'
 import { Plus } from 'lucide-react'
 
-const STORES: Retailer[] = ['cargills', 'keells', 'sathosa']
+const STORES: Retailer[] = AVAILABLE_RETAILERS
 
 function formatTime(iso: string) {
   const d = new Date(iso)
@@ -14,12 +14,14 @@ function formatTime(iso: string) {
   return `${hours}h ago`
 }
 
-function getPriceClass(price: number, prices: Product['prices']) {
-  const values = Object.values(prices)
+function getPriceClass(price: number | undefined, prices: Product['prices']) {
+  if (price == null) return 'text-grey-400'
+  const values = Object.values(prices).filter((p): p is number => p != null)
+  if (values.length === 0) return 'text-grey-700'
   const min = Math.min(...values)
   const max = Math.max(...values)
-  if (price <= min) return 'price-low'
-  if (price >= max) return 'price-high'
+  if (price <= min) return 'text-green-600 font-bold'
+  if (price >= max) return 'text-red-600 font-semibold'
   return 'text-grey-700'
 }
 
@@ -58,20 +60,23 @@ export function ComparisonCard({
           <Plus className="w-5 h-5" />
         </button>
       </div>
-      <div className="grid grid-cols-3 border-t border-grey-100 bg-grey-50/80">
-        {STORES.map((store) => (
-          <div
-            key={store}
-            className="px-3 py-2.5 text-center border-r border-grey-100 last:border-r-0"
-          >
-            <p className="text-[10px] uppercase tracking-wide text-grey-500 font-medium">
-              {RETAILER_LABELS[store]}
-            </p>
-            <p className={`text-sm font-semibold ${getPriceClass(prices[store], prices)}`}>
-              Rs. {prices[store].toLocaleString()}
-            </p>
-          </div>
-        ))}
+      <div className="grid grid-cols-4 border-t border-grey-100 bg-grey-50/80">
+        {STORES.map((store) => {
+          const price = prices[store]
+          return (
+            <div
+              key={store}
+              className="px-3 py-2.5 text-center border-r border-grey-100 last:border-r-0"
+            >
+              <p className="text-[10px] uppercase tracking-wide text-grey-500 font-medium">
+                {RETAILER_LABELS[store]}
+              </p>
+              <p className={`text-sm font-semibold ${getPriceClass(price, prices)}`}>
+                {price != null && price > 0 ? `Rs. ${price.toLocaleString()}` : 'N/A'}
+              </p>
+            </div>
+          )
+        })}
       </div>
     </article>
   )

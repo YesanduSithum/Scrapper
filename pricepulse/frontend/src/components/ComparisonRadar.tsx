@@ -26,7 +26,7 @@ export function ComparisonRadar({
     <section className="px-4 py-4" aria-label="Comparison Radar">
       <h2 className="text-lg font-semibold text-grey-900 mb-3">Comparison Radar</h2>
       <p className="text-sm text-grey-500 mb-4">
-        Real-time prices across Cargills, Keells & Sathosa. Lowest in green, highest in red.
+        Real-time prices across Cargills, Keells, Spar2U, and Glowmark. Lowest in green, highest in red.
       </p>
       <div className="space-y-4">
         {filtered.length === 0 ? (

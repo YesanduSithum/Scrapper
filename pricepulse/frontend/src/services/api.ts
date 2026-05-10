@@ -131,5 +131,11 @@ export const api = {
       const query = month ? `?month=${encodeURIComponent(month)}` : ''
       return requestJson<PurchaseSummary>(`${API_BASE_URL}/purchases/summary${query}`)
     },
+
+    history: async (months: number = 12) => {
+      return requestJson<Array<{ month: string; spent: number; purchaseCount: number }>>(
+        `${API_BASE_URL}/purchases/history?months=${months}`
+      )
+    },
   },
 }

@@ -1,13 +1,13 @@
 import { useMemo } from 'react'
 import type { BasketItem, Retailer } from '../types'
-import { RETAILER_LABELS } from '../data/mockProducts'
+import { AVAILABLE_RETAILERS, RETAILER_LABELS } from '../constants/retailers'
 import { ShoppingBag } from 'lucide-react'
 
-const STORES: Retailer[] = ['cargills', 'keells', 'sathosa']
+const STORES: Retailer[] = AVAILABLE_RETAILERS
 
 function totalByStore(items: BasketItem[], store: Retailer): number {
   return items.reduce(
-    (sum, { product, quantity }) => sum + product.prices[store] * quantity,
+    (sum, { product, quantity }) => sum + (product.prices[store] ?? 0) * quantity,
     0
   )
 }
@@ -42,7 +42,7 @@ export function BasketSummary({ items }: { items: BasketItem[] }) {
           <span className="text-sm font-medium text-grey-700">Basket Summary</span>
           <span className="text-xs text-grey-500">{items.length} item(s)</span>
         </div>
-        <div className="grid grid-cols-3 gap-2 text-center mb-2">
+        <div className="grid grid-cols-4 gap-2 text-center mb-2">
           {totals.map(({ store, total }) => (
             <div
               key={store}
