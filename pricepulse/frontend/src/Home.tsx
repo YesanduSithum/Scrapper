@@ -137,16 +137,22 @@ function Dashboard() {
   const cheapestStore = useMemo(() => getCheapestStoreForBasket(basket), [basket])
 
   const handleAddToList = (product: Product, quantity: number = 1) => {
+    console.log('[Home] handleAddToList called', { productId: product.id, name: product.name, quantity })
     setBasket((prev) => {
+      console.log('[Home] basket before add', prev.map((b) => ({ id: b.product.id, qty: b.quantity })))
       const existing = prev.find((i) => i.product.id === product.id)
-      if (existing) {
-        return prev.map((i) =>
-          i.product.id === product.id ? { ...i, quantity: i.quantity + quantity } : i
-        )
-      }
-      return [...prev, { product, quantity }]
+      const next = existing
+        ? prev.map((i) => (i.product.id === product.id ? { ...i, quantity: i.quantity + quantity } : i))
+        : [...prev, { product, quantity }]
+      console.log('[Home] basket after add', next.map((b) => ({ id: b.product.id, qty: b.quantity })))
+      return next
     })
   }
+
+  // debugging: log basket changes
+  useEffect(() => {
+    console.log('[Home] basket updated', basket.map((b) => ({ id: b.product.id, name: b.product.name, qty: b.quantity })))
+  }, [basket])
 
   const handleUpdateQuantity = (productId: string, delta: number) => {
     setBasket((prev) =>
@@ -159,7 +165,33 @@ function Dashboard() {
   }
 
   const handleRemove = (productId: string) => {
-    setBasket((prev) => prev.filter((i) => i.product.id !== productId))
+    console.log('[Home] handleRemove called', productId)
+    setBasket((prev) => {
+      console.log('[Home] basket before remove', prev.map((b) => ({ id: b.product.id, qty: b.quantity })))
+      const next = prev.filter((i) => i.product.id !== productId)
+      console.log('[Home] basket after remove', next.map((b) => ({ id: b.product.id, qty: b.quantity })))
+      return next
+    })
+  }
+
+  const handleReplaceBasketItem = (originalProductId: string, product: Product, quantity: number) => {
+    console.log('[Home] handleReplaceBasketItem called', {
+      originalProductId,
+      replacementId: product.id,
+      quantity,
+    })
+    setBasket((prev) => {
+      console.log('[Home] basket before replace', prev.map((b) => ({ id: b.product.id, qty: b.quantity })))
+      const withoutOriginal = prev.filter((item) => item.product.id !== originalProductId)
+      const existing = withoutOriginal.find((item) => item.product.id === product.id)
+      const next = existing
+        ? withoutOriginal.map((item) =>
+            item.product.id === product.id ? { ...item, quantity: item.quantity + quantity } : item
+          )
+        : [...withoutOriginal, { product, quantity }]
+      console.log('[Home] basket after replace', next.map((b) => ({ id: b.product.id, qty: b.quantity })))
+      return next
+    })
   }
 
   const handleFindCheapestStore = () => {
@@ -346,13 +378,26 @@ function Dashboard() {
                 {productLoadError}
               </div>
             )}
-            <AddGroceryItems ref={addGroceryItemsRef} products={products} onAddToBasket={handleAddToList} />
+            <AddGroceryItems
+              ref={addGroceryItemsRef}
+              products={products}
+              onAddToBasket={handleAddToList}
+              onRemoveFromBasket={handleRemove}
+              onReplaceBasketItem={handleReplaceBasketItem}
+              onConfirmProcessed={handleFindCheapestStore}
+            />
             
             <div className="px-4 py-4">
               <button
                 type="button"
-                onClick={() => {
-                  void addGroceryItemsRef.current?.processPendingItems()
+                onClick={async () => {
+                  try {
+                    await addGroceryItemsRef.current?.processPendingItems()
+                    // Processing completed — keep user on this screen so they can review alternatives.
+                    // Confirmation will navigate to comparisons via the Confirm button inside the list.
+                  } catch (err) {
+                    console.error('Process list failed', err)
+                  }
                 }}
                 className="w-full py-3 rounded-2xl bg-primary-600 text-white font-semibold text-base hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 flex items-center justify-center gap-2 shadow-sm"
               >

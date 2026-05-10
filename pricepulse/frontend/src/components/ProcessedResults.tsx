@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 
 interface ProcessedResultsProps {
   results: ProcessListResult[]
-  onSelectAlternative?: (candidate: ProductMatchCandidate, quantity: number) => void
+  onSelectAlternative?: (candidate: ProductMatchCandidate, quantity: number, result?: ProcessListResult) => void
 }
 
 export function ProcessedResults({ results, onSelectAlternative }: ProcessedResultsProps) {
@@ -139,7 +139,10 @@ export function ProcessedResults({ results, onSelectAlternative }: ProcessedResu
                       {onSelectAlternative && (
                         <button
                           type="button"
-                          onClick={() => onSelectAlternative(alt, result.quantity)}
+                          onClick={() => {
+                            console.log('[ProcessedResults] Use This clicked', { altId: alt.product.id, qty: result.quantity, original: result.bestMatch?.product.id })
+                            onSelectAlternative?.(alt, result.quantity, result)
+                          }}
                           className="flex-shrink-0 px-3 py-1 rounded-lg bg-primary-100 text-primary-700 text-xs font-semibold hover:bg-primary-200 transition-colors"
                         >
                           Use This
