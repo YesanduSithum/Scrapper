@@ -27,6 +27,7 @@ INVALID_NAME_PHRASES = {
     "offer",
     "shop now",
     "learn more",
+    "off",
 }
 
 
@@ -1316,6 +1317,202 @@ def extract_products_retailer2(html_content):
         )
 
     return products
+
+
+def _extract_retailer4_from_card(card):
+    """
+    Extract product info from Glomark (Retailer 4) product card.
+    
+    DOM Structure:
+    - With discount: discount_percentage + " off" + product_name + " per 1 unit(s)" + discounted_price + original_price + " ADD TO CART"
+    - Without discount: product_name + " per 1 unit(s)" + price + " ADD TO CART"
+    """
+    tokens = [" ".join(text.split()).strip() for text in card.stripped_strings if str(text).strip()]
+    if not tokens:
+        return None, None, None
+
+    text = " ".join(tokens)
+    lowered_text = text.lower()
+
+    stop_tokens = {"add", "to", "cart", "add to cart", "unit", "units", "unit(s)"}
+
+    discount_percent = None
+    discount_match = re.search(r"\b(\d+(?:\.\d+)?)\s*%?\s*off\b", text, flags=re.IGNORECASE)
+    if discount_match:
+        try:
+            discount_percent = float(discount_match.group(1))
+        except ValueError:
+            discount_percent = None
+
+    per_index = lowered_text.find("per")
+    cart_index = lowered_text.rfind("add to cart")
+
+    head_text = text[:per_index].strip() if per_index != -1 else text
+    price_text = text[per_index:cart_index].strip() if per_index != -1 and cart_index != -1 and cart_index > per_index else text
+
+    head_text = re.sub(r"\b\d+(?:\.\d+)?\s*%?\s*off\b", " ", head_text, flags=re.IGNORECASE)
+    head_text = re.sub(r"\boff\b", " ", head_text, flags=re.IGNORECASE)
+    head_text = re.sub(r"\s+", " ", head_text).strip()
+
+    name = None
+    candidate_sources = []
+    for selector in ["a[title]", "[data-name]", "[data-title]", "[aria-label]", ".product-title", ".product-name", ".name", "h2", "h3", "img[alt]"]:
+        element = card.select_one(selector)
+        if not element:
+            continue
+        if selector == "img[alt]":
+            candidate = (element.get("alt") or "").strip()
+        elif selector in ("a[title]", "[data-name]", "[data-title]", "[aria-label]"):
+            candidate = (
+                element.get("title")
+                or element.get("data-name")
+                or element.get("data-title")
+                or element.get("aria-label")
+                or ""
+            ).strip()
+        else:
+            candidate = element.get_text(" ", strip=True)
+        if candidate:
+            candidate_sources.append(candidate)
+
+    candidate_sources.append(head_text)
+
+    for candidate in candidate_sources:
+        normalized = " ".join(str(candidate).split()).strip()
+        if not normalized:
+            continue
+        lowered = normalized.lower()
+        if lowered in stop_tokens:
+            continue
+        if re.fullmatch(r"\d+(?:\.\d+)?\s*%?\s*off", lowered):
+            continue
+        if _is_valid_product_name(normalized) and not _looks_like_price_text(normalized):
+            name = normalized
+            break
+
+    if not name:
+        for token in tokens:
+            normalized = " ".join(token.split()).strip()
+            lowered = normalized.lower()
+            if not normalized or lowered in stop_tokens:
+                continue
+            if re.fullmatch(r"\d+(?:\.\d+)?\s*%?\s*off", lowered):
+                continue
+            if "per" in lowered or "unit" in lowered:
+                continue
+            if _parse_price(normalized) is not None:
+                continue
+            if _is_valid_product_name(normalized) and not _looks_like_price_text(normalized):
+                name = normalized
+                break
+
+    if not name:
+        return None, None, None
+
+    price_candidates = []
+    rs_matches = list(re.finditer(r"Rs\s*([\d,]+(?:\.\d+)?)", price_text, flags=re.IGNORECASE))
+    price_matches = rs_matches if rs_matches else list(re.finditer(r"\d+(?:,\d{3})*(?:\.\d+)?", price_text))
+
+    for match in price_matches:
+        value_text = match.group(1) if match.re.pattern.lower().startswith("rs") and match.lastindex else match.group(0)
+        parsed = _parse_price(value_text)
+        if parsed is None or parsed <= 0:
+            continue
+        rounded = round(parsed, 2)
+        if rounded not in price_candidates:
+            price_candidates.append(rounded)
+
+    original_price = None
+    discounted_price = None
+
+    if discount_percent is not None:
+        if len(price_candidates) >= 2:
+            discounted_price = price_candidates[0]
+            original_price = price_candidates[1]
+        elif len(price_candidates) == 1:
+            discounted_price = price_candidates[0]
+    else:
+        if len(price_candidates) >= 1:
+            original_price = price_candidates[0]
+
+    if original_price is not None and discounted_price is not None and discounted_price >= original_price:
+        original_price, discounted_price = discounted_price, original_price
+
+    if original_price is None and discounted_price is not None:
+        original_price = discounted_price
+        discounted_price = None
+
+    if original_price is None and discounted_price is None:
+        return None, None, None
+
+    return name, original_price, discounted_price
+
+
+def extract_products_retailer4(html_content):
+    """Extract products from Glomark (Retailer 4) using specialized logic."""
+    soup = BeautifulSoup(html_content, "html.parser")
+    products = []
+    seen = set()
+
+    containers = []
+    seen_ids = set()
+
+    def _add_container(node):
+        if not node:
+            return
+        identifier = id(node)
+        if identifier in seen_ids:
+            return
+        seen_ids.add(identifier)
+        containers.append(node)
+
+    for anchor in soup.select("a[href*='/p/']"):
+        candidate = anchor
+        for parent in anchor.parents:
+            if parent.name not in {"div", "article", "li", "section"}:
+                continue
+            parent_text = " ".join(parent.stripped_strings).lower()
+            if "add to cart" in parent_text and "per" in parent_text:
+                candidate = parent
+                break
+        _add_container(candidate)
+
+    for card in soup.select(
+        ".product-item, .product-content, .product-card, .product, .item, [data-testid*='product'], [class*='product']"
+    ):
+        _add_container(card)
+
+    for card in containers:
+        name, original_price, discounted_price = _extract_retailer4_from_card(card)
+        if not name or _looks_like_price_text(name):
+            continue
+        if re.fullmatch(r"\d+(?:\.\d+)?\s*%?\s*off", name.strip(), flags=re.IGNORECASE):
+            continue
+
+        key = name.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+
+        save_amount = None
+        if original_price is not None and discounted_price is not None:
+            save_amount = round(original_price - discounted_price, 2)
+
+        discount_percent = None
+        if original_price is not None and discounted_price is not None and original_price:
+            discount_percent = round(((original_price - discounted_price) / original_price) * 100, 1)
+
+        products.append(
+            {
+                "product_name": name,
+                "original_price": original_price,
+                "discounted_price": discounted_price,
+                "discount_percent": discount_percent,
+                "save_amount": save_amount,
+            }
+        )
+
+    return products if products else None
 
 
 def extract_products(html_content):

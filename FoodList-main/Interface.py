@@ -1,5 +1,5 @@
 import streamlit as st
-from scrape import scrape_website, clean_body_content, extract_products, extract_products_retailer2
+from scrape import scrape_website, clean_body_content, extract_products, extract_products_retailer2, extract_products_retailer4
 from db_pipeline import normalize_scraped_items, upsert_products_and_prices, infer_retailer_from_url
 
 
@@ -86,16 +86,7 @@ RETAILER_URLS = {
     ],
     "Retailer 4": [
         "https://glomark.lk/deal-page",
-        "https://glomark.lk/beverages/dp/13",
-        "https://glomark.lk/bakery/dp/22",
-        "https://glomark.lk/chilled/dp/18",
-        "https://glomark.lk/fresh/dp/16",
-        "https://glomark.lk/frozen/dp/19",
-        "https://glomark.lk/grocery/dp/15",
-        "https://glomark.lk/homeware/dp/17",
-        "https://glomark.lk/household/dp/14",
-        "https://glomark.lk/pharmaceuticals/dp/20",
-        "https://glomark.lk/glogreen-bags/dp/145",
+      
     ],
 }
 
@@ -133,7 +124,14 @@ def scrape_retailer(retailer_label: str, urls: list[str]):
 
     combined_dom = []
     combined_items = []
-    extractor = extract_products_retailer2 if retailer_label == "Retailer 2" else extract_products
+    
+    # Select appropriate extractor function based on retailer
+    if retailer_label == "Retailer 2":
+        extractor = extract_products_retailer2
+    elif retailer_label == "Retailer 4":
+        extractor = extract_products_retailer4
+    else:
+        extractor = extract_products
 
     for idx, url in enumerate(urls, start=1):
         with st.spinner(f"Scraping {retailer_label} page {idx}/{len(urls)}..."):
