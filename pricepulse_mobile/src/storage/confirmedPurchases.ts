@@ -39,7 +39,9 @@ export async function readConfirmedPurchases(): Promise<ConfirmedPurchaseRecord[
 
 export async function appendConfirmedPurchase(record: ConfirmedPurchaseRecord): Promise<void> {
   const existing = await readConfirmedPurchases();
-  await SecureStore.setItemAsync(CONFIRMED_PURCHASES_STORAGE_KEY, JSON.stringify([...existing, record]));
+  // Keep only last 50 purchases to avoid exceeding 2048 byte limit
+  const updated = [...existing, record].slice(-50);
+  await SecureStore.setItemAsync(CONFIRMED_PURCHASES_STORAGE_KEY, JSON.stringify(updated));
 }
 
 export function buildConfirmedPurchaseRecord(items: BasketItem[], store: Retailer | null): ConfirmedPurchaseRecord {

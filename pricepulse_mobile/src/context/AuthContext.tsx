@@ -39,7 +39,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const result = await api.auth.login(email, password);
       await SecureStore.setItemAsync(TOKEN_KEY, result.token);
-      await SecureStore.setItemAsync(USER_KEY, JSON.stringify(result.user));
+      // Only store essential user data to avoid exceeding 2048 byte limit
+      await SecureStore.setItemAsync(USER_KEY, JSON.stringify({ id: result.user.id, name: result.user.name, email: result.user.email }));
       setUser(result.user);
       return true;
     } catch (err) {
@@ -56,7 +57,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const result = await api.auth.register(email, password, name);
       await SecureStore.setItemAsync(TOKEN_KEY, result.token);
-      await SecureStore.setItemAsync(USER_KEY, JSON.stringify(result.user));
+      // Only store essential user data to avoid exceeding 2048 byte limit
+      await SecureStore.setItemAsync(USER_KEY, JSON.stringify({ id: result.user.id, name: result.user.name, email: result.user.email }));
       setUser(result.user);
       return true;
     } catch (err) {

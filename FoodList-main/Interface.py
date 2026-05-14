@@ -64,24 +64,9 @@ RETAILER_URLS = {
 
     ],
     "Retailer 3": [
-        "https://spar2u.lk/collections/meat",
+       
         "https://spar2u.lk/collections/bakery",
-        "https://spar2u.lk/collections/vegetables",
-        "http://spar2u.lk/collections/fruits",
-        "https://spar2u.lk/collections/grocery",
-        "https://spar2u.lk/collections/powdered-milk",
-        "https://spar2u.lk/collections/liquid-milk",
-        "https://spar2u.lk/collections/tea",
-        "https://spar2u.lk/collections/coffee",
-        "https://spar2u.lk/collections/desserts",
-        "https://spar2u.lk/collections/sweets-snacks",
-        "https://spar2u.lk/collections/health-beauty",
-        "https://spar2u.lk/collections/chilled",
-        "https://spar2u.lk/collections/frozens",
-        "https://spar2u.lk/collections/household",
-        "https://spar2u.lk/collections/general-merchandise",
-        "http://spar2u.lk/collections/spar-local",
-        "https://spar2u.lk/collections/pet-care",
+        
    
     ],
     "Retailer 4": [

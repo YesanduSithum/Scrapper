@@ -5,23 +5,23 @@ It uses the same backend endpoints and database as the web app.
 
 ## Setup
 
-1. Install dependencies:
+### Network Configuration
 
-```bash
-npm install
-```
+The backend host is configured in [`src/constants/config.ts`](src/constants/config.ts). If you need to connect to a backend on a different IP or network, edit that file and change the `BACKEND_HOST` constant.
 
-2. Create `.env` from `.env.example` and set your backend URL:
+**Note:** Both the frontend and mobile apps have their own `config.ts` files—keep the `BACKEND_HOST` values in sync if you want them on the same network.
 
-```bash
-EXPO_PUBLIC_API_BASE_URL=http://localhost:8000/api
-```
+### Installation & Running
 
-3. Start app:
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
-```bash
-npm run start
-```
+2. **Start app:**
+   ```bash
+   npm run start
+   ```
 
 ## Notes
 

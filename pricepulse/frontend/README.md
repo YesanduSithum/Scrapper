@@ -9,6 +9,12 @@ React + TypeScript + Vite frontend for the Price Pulse grocery price comparison 
 - Node.js (v18 or higher)
 - npm or yarn
 
+### Network Configuration
+
+The backend host is configured in [`src/constants/config.ts`](src/constants/config.ts). If you need to connect to a backend on a different IP or network, edit that file and change the `BACKEND_HOST` constant.
+
+**Note:** Both the frontend and mobile apps have their own `config.ts` files—keep the `BACKEND_HOST` values in sync if you want them on the same network.
+
 ### Installation
 
 1. **Install dependencies:**

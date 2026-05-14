@@ -17,9 +17,8 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { BudgetDashboard } from "./src/components/BudgetDashboard";
+import BudgetDashboard from "./src/components/BudgetDashboard";
 import { ComparisonView } from "./src/components/ComparisonView";
-import { FindNearestStore } from "./src/components/FindNearestStore";
 import { ProcessedResults } from "./src/components/ProcessedResults";
 import { AuthProvider, useAuth } from "./src/context/AuthContext";
 import { AVAILABLE_RETAILERS, RETAILER_LABELS } from "./src/constants/retailers";
@@ -52,7 +51,13 @@ function AppBody() {
   if (bootstrapping) {
     return (
       <SafeAreaView style={styles.centered}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <LinearGradient colors={["#ecfdf5", "#d1fae5", "#ffffff"]} locations={[0, 0.45, 1]} style={styles.loadingGradient}>
+          <View style={styles.loadingContent}>
+            <Image source={LOGO} style={styles.loadingLogo} resizeMode="contain" accessibilityLabel="PricePulse logo" />
+            <Text style={styles.loadingText}>Loading PricePulse</Text>
+            <ActivityIndicator style={styles.loadingSpinner} size="large" color={theme.colors.primary} />
+          </View>
+        </LinearGradient>
       </SafeAreaView>
     );
   }
@@ -602,7 +607,7 @@ function Dashboard() {
                     </Text>
                   </View>
                   {pendingItems.map((item, index) => (
-                    <View key={`${item.name}-${index}`} style={styles.queueRow}>
+                    <View key={`pending-${item.name}-${item.quantity}-${index}`} style={styles.queueRow}>
                       <View style={styles.queueQty}>
                         <Text style={styles.queueQtyText}>{item.quantity}</Text>
                       </View>
@@ -745,7 +750,6 @@ function Dashboard() {
               <Text style={styles.backLink}>← Back to home</Text>
             </Pressable>
             <BudgetDashboard refreshToken={budgetRefreshKey} extraConfirmedPurchases={extraConfirmedPurchases} />
-            <FindNearestStore cheapestStore={cheapestStore} />
           </View>
         )}
       </ScrollView>
@@ -779,6 +783,11 @@ export default function App() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.surface },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.colors.background },
+  loadingGradient: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 16 },
+  loadingContent: { alignItems: "center", gap: 24 },
+  loadingLogo: { width: 120, height: 120, marginBottom: 8 },
+  loadingText: { fontSize: 18, fontWeight: "700", color: theme.colors.text, textAlign: "center" },
+  loadingSpinner: { marginTop: 16 },
   animatedScreen: { flex: 1 },
   scroll: { padding: 16, paddingBottom: 100, gap: 14 },
   screenBlock: { gap: 14 },

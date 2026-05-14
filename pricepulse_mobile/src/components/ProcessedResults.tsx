@@ -101,7 +101,7 @@ export function ProcessedResults({ results, onSelectAlternative }: Props) {
                 <View style={styles.alts}>
                   <Text style={styles.altsTitle}>Similar products ({result.alternatives.length})</Text>
                   {result.alternatives.map((alt, altIdx) => (
-                    <View key={`${key}-alt-${altIdx}`} style={styles.altRow}>
+                    <View key={`${key}-alt-${alt.product.id}-${altIdx}`} style={styles.altRow}>
                       <View style={styles.altText}>
                         <Text style={styles.altName} numberOfLines={2}>
                           {alt.product.name}
